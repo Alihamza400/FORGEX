@@ -42,11 +42,11 @@ def _parse_json(data: str | bytes) -> dict[str, Any]:
     try:
         import orjson
 
-        return orjson.loads(data)
+        return orjson.loads(data)  # type: ignore[no-any-return]
     except ImportError:
         import json
 
-        return json.loads(data)
+        return json.loads(data)  # type: ignore[no-any-return]
 
 
 class OllamaClient:
@@ -74,7 +74,7 @@ class OllamaClient:
         data = _parse_json(response.content)
         models = data.get("models", [])
         logger.info("listed ollama models", count=len(models))
-        return models
+        return models  # type: ignore[no-any-return]
 
     async def generate(
         self,
@@ -150,7 +150,7 @@ class OllamaClient:
             text_len=len(text),
             dim=len(embedding),
         )
-        return embedding
+        return embedding  # type: ignore[no-any-return]
 
     async def pull_model(self, model: str) -> dict[str, Any]:
         logger.info("pulling ollama model", model=model)

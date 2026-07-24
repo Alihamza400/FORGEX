@@ -129,7 +129,7 @@ class QdrantMemory:
             if filter_:
                 qfilter = qmodels.Filter(**filter_)
 
-            results = self.client.search(
+            results = self.client.search(  # type: ignore[attr-defined]
                 collection_name=self.collection,
                 query_vector=vector,
                 limit=limit,
@@ -162,7 +162,7 @@ class QdrantMemory:
         try:
             self.client.delete(
                 collection_name=self.collection,
-                points_selector=point_ids,
+                points_selector=qmodels.PointIdsList(points=point_ids),  # type: ignore[arg-type]
                 wait=True,
             )
             logger.debug("deleted qdrant points", count=len(point_ids))

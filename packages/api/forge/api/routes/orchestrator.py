@@ -10,7 +10,6 @@ from forge.llm.client import OllamaClient
 from forge.orchestrator.coordinator import OrchestratorCoordinator
 from forge.orchestrator.exceptions import OrchestratorError
 from forge.orchestrator.models import (
-    AgentDescriptor,
     OrchestrationConfig,
     OrchestrationResult,
     SubTaskResult,
@@ -35,10 +34,6 @@ class OrchestrateResponse(BaseModel):
     error: str | None = None
 
 
-class AgentListResponse(BaseModel):
-    agents: list[AgentDescriptor]
-
-
 class MessageRequest(BaseModel):
     recipient: str
     type: str = "request"
@@ -61,18 +56,11 @@ def _get_llm() -> OllamaClient:
     return _llm
 
 
-@router.get("/agents", response_model=AgentListResponse)
-async def list_agents(_=Depends(require_permission("agent:list"))):
-    """List all registered agents with their capabilities and status."""
-    registry = get_registry()
-    return AgentListResponse(agents=registry.list())
-
-
 @router.post("/orchestrate", response_model=OrchestrateResponse)
 async def orchestrate(
     request: OrchestrateRequest,
-    _=Depends(require_permission("orchestrate:create")),
-):
+    _: Any = Depends(require_permission("orchestrate:create")),
+) -> OrchestrateResponse:
     """Execute a multi-agent orchestration."""
     llm = _get_llm()
     registry = get_registry()
@@ -109,8 +97,8 @@ async def orchestrate(
 @router.get("/orchestrate/{orchestration_id}", response_model=OrchestrateResponse)
 async def get_orchestration(
     orchestration_id: str,
-    _=Depends(require_permission("orchestrate:read")),
-):
+    _: Any = Depends(require_permission("orchestrate:read")),
+) -> OrchestrateResponse:
     """Get the status and result of an orchestration."""
     result = _orchestrations.get(orchestration_id)
     if result is None:
@@ -126,8 +114,8 @@ async def get_orchestration(
 @router.get("/orchestrate/{orchestration_id}/sub-tasks", response_model=list[SubTaskResult])
 async def get_orchestration_sub_tasks(
     orchestration_id: str,
-    _=Depends(require_permission("orchestrate:read")),
-):
+    _: Any = Depends(require_permission("orchestrate:read")),
+) -> list[SubTaskResult]:
     """Get the individual sub-task results for an orchestration."""
     result = _orchestrations.get(orchestration_id)
     if result is None:

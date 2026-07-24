@@ -173,7 +173,7 @@ def _read_message() -> dict[str, Any] | None:
     line = line.strip()
     if not line:
         return None
-    return _loads(line)
+    return _loads(line)  # type: ignore[no-any-return]
 
 
 def _handle_request(msg: dict[str, Any]) -> dict[str, Any]:

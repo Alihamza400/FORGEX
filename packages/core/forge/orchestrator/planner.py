@@ -84,7 +84,7 @@ Rules:
 
         try:
             result = await self._llm.chat(
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": prompt}],  # type: ignore[list-item]
                 model=self._model,
                 temperature=0.2,
                 max_tokens=4096,

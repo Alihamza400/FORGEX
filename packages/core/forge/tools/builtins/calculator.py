@@ -27,17 +27,17 @@ def _eval_node(node: ast.AST) -> int | float:
     if isinstance(node, ast.Constant):
         if isinstance(node.value, (int, float)):
             return node.value
-        raise ValueError(f"Unsupported constant: {node.value}")
+        raise ValueError(f"Unsupported constant: {node.value}")  # type: ignore[str-bytes-safe]
     if isinstance(node, ast.UnaryOp):
         op = _ALLOWED_OPS.get(type(node.op))
         if op is None:
             raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
-        return op(_eval_node(node.operand))
+        return op(_eval_node(node.operand))  # type: ignore[no-any-return, operator]
     if isinstance(node, ast.BinOp):
         op = _ALLOWED_OPS.get(type(node.op))
         if op is None:
             raise ValueError(f"Unsupported binary operator: {type(node.op).__name__}")
-        return op(_eval_node(node.left), _eval_node(node.right))
+        return op(_eval_node(node.left), _eval_node(node.right))  # type: ignore[no-any-return, operator]
     raise ValueError(f"Unsupported expression: {type(node).__name__}")
 
 

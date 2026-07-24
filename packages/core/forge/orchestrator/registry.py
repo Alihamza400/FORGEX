@@ -55,7 +55,7 @@ class AgentRegistry:
             raise AgentNotFoundError(f"Agent '{name}' not found")
         return agent
 
-    def list(self) -> list[AgentDescriptor]:
+    def list_agents(self) -> list[AgentDescriptor]:
         return list(self._agents.values())
 
     def find_by_capability(

@@ -19,37 +19,27 @@ def test_build_initialize_request():
     assert req.params is not None
     assert req.params["protocolVersion"] == "2025-03-26"
     assert req.params["clientInfo"]["name"] == "forge"
-
-
 def test_build_list_tools_request():
     req = build_list_tools_request(request_id=42)
     assert req.method == "tools/list"
     assert req.id == 42
-
-
 def test_build_call_tool_request():
     req = build_call_tool_request("read_file", {"path": "/test.txt"}, request_id=7)
     assert req.method == "tools/call"
     assert req.params["name"] == "read_file"
     assert req.params["arguments"]["path"] == "/test.txt"
     assert req.id == 7
-
-
 def test_parse_response_success():
     raw = {"jsonrpc": "2.0", "result": {"tools": []}, "id": 1}
     resp = parse_response(raw)
     assert resp.result == {"tools": []}
     assert resp.error is None
     assert resp.id == 1
-
-
 def test_parse_response_error():
     raw = {"jsonrpc": "2.0", "error": {"code": -32601, "message": "not found"}, "id": 1}
     resp = parse_response(raw)
     assert resp.result is None
     assert resp.error["code"] == -32601
-
-
 def test_parse_tool_list():
     data = {
         "result": {
@@ -67,8 +57,6 @@ def test_parse_tool_list():
     assert len(tools) == 2
     assert tools[0].name == "read_file"
     assert tools[1].name == "write_file"
-
-
 def test_mcp_tool_spec_from_dict():
     data = {
         "name": "test_tool",
@@ -79,8 +67,6 @@ def test_mcp_tool_spec_from_dict():
     assert spec.name == "test_tool"
     assert spec.description == "A test"
     assert spec.input_schema["type"] == "object"
-
-
 def test_parse_tool_call_result_text():
     data = {
         "result": {
@@ -91,8 +77,6 @@ def test_parse_tool_call_result_text():
     }
     result = parse_tool_call_result(data)
     assert result == "Hello world"
-
-
 def test_parse_tool_call_result_multiple():
     data = {
         "result": {
@@ -105,8 +89,6 @@ def test_parse_tool_call_result_multiple():
     result = parse_tool_call_result(data)
     assert "Part 1" in result
     assert "Part 2" in result
-
-
 def test_parse_tool_call_result_empty():
     data = {"result": {"content": []}}
     result = parse_tool_call_result(data)

@@ -54,7 +54,7 @@ class AgentRepository:
             delete(AgentModel).where(AgentModel.id == agent_id),
         )
         await self.session.commit()
-        return result.rowcount > 0
+        return result.rowcount > 0  # type: ignore[attr-defined, no-any-return]
 
 
 class TaskRepository:

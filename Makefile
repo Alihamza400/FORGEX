@@ -29,22 +29,22 @@ test:
 	uv run pytest
 
 test-unit:
-	uv run pytest -m unit
+	uv run pytest tests/unit/ -v
 
 test-integration:
-	uv run pytest -m integration -v
+	uv run pytest tests/integration/ -v
 
 test-e2e:
-	uv run pytest -m e2e -v
+	uv run pytest tests/e2e/ -v
 
 test-benchmark:
-	uv run pytest -m benchmark -v
+	uv run pytest tests/benchmarks/ -v
 
 test-cov:
 	uv run pytest --cov
 
 test-all:
-	uv run pytest -m "unit or integration" --cov
+	uv run pytest tests/unit/ tests/integration/ --cov
 
 # === UI ===
 ui-install:

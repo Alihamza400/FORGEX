@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
@@ -55,10 +56,10 @@ async def get_current_user(
                 result = await session.execute(select(ApiKeyModel).where(ApiKeyModel.is_active))
                 keys = result.scalars().all()
                 for key_model in keys:
-                    if verify_api_key(api_key, key_model.hash):
+                    if verify_api_key(api_key, key_model.hash):  # type: ignore[arg-type]
                         key_model.last_used_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
                         await session.commit()
-                        perms = resolve_user_permissions(key_model.permissions)
+                        perms = resolve_user_permissions(key_model.permissions)  # type: ignore[arg-type]
                         return {
                             "id": str(key_model.user_id),
                             "username": f"api-key:{key_model.name}",
@@ -93,7 +94,7 @@ async def get_optional_user(
         return None
 
 
-def require_permission(*permissions: str):
+def require_permission(*permissions: str) -> Callable[..., Any]:
     async def _check(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
         if not check_permissions(current_user.get("permissions", []), list(permissions)):
             raise HTTPException(
@@ -104,7 +105,7 @@ def require_permission(*permissions: str):
     return _check
 
 
-def require_role(*roles: str):
+def require_role(*roles: str) -> Callable[..., Any]:
     async def _check(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
         user_roles = current_user.get("roles", [])
         if not any(r in user_roles for r in roles):

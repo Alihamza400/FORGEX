@@ -119,9 +119,9 @@ class MCPClient:
             msg = response.error.get("message", "unknown")
             raise MCPToolCallError(f"Tool '{name}' failed: {msg}")
 
-            result_text = parse_tool_call_result({"result": response.result})
+        result_text = parse_tool_call_result({"result": response.result})
         logger.info("mcp tool returned", tool=name, result_len=len(result_text))
-        return result_text
+        return str(result_text)
 
     async def _wait_for_response(self, expected_id: int | str | None) -> Any:
         import asyncio

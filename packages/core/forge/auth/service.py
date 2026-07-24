@@ -9,7 +9,7 @@ from typing import Any
 import bcrypt
 from forge.core.config import settings
 from forge.core.logging import get_logger
-from jose import JWTError, jwt
+from jose import JWTError, jwt  # type: ignore[import-untyped]
 
 logger = get_logger("forge.auth.service")
 
@@ -49,7 +49,7 @@ def create_access_token(
     if permissions:
         payload["permissions"] = permissions
 
-    return jwt.encode(payload, settings.api_secret_key, algorithm=ALGORITHM)
+    return jwt.encode(payload, settings.api_secret_key, algorithm=ALGORITHM)  # type: ignore[no-any-return]
 
 
 def create_refresh_token(subject: str) -> str:
@@ -64,7 +64,7 @@ def create_refresh_token(subject: str) -> str:
         "type": "refresh",
         "jti": secrets.token_hex(16),
     }
-    return jwt.encode(payload, settings.api_secret_key, algorithm=ALGORITHM)
+    return jwt.encode(payload, settings.api_secret_key, algorithm=ALGORITHM)  # type: ignore[no-any-return]
 
 
 def verify_token(token: str, expected_type: str = "access") -> dict[str, Any]:
@@ -79,7 +79,7 @@ def verify_token(token: str, expected_type: str = "access") -> dict[str, Any]:
         exp = payload.get("exp")
         if exp and time.time() > exp:
             raise ValueError("Token has expired")
-        return payload
+        return payload  # type: ignore[no-any-return]
     except JWTError as e:
         raise ValueError(f"Invalid token: {e}") from e
 

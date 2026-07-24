@@ -37,9 +37,11 @@ make dev-api            # Start API on :8000
 make lint               # ruff check
 make typecheck          # mypy strict mode
 make test               # all pytest
-make test-unit          # unit tests only
+make test-unit          # 155 unit tests (no deps)
 make test-integration   # integration tests (Docker required)
 make test-e2e           # e2e tests (full stack)
+make test-benchmark     # benchmark tests (API must be running)
+make test-cov           # tests with coverage
 make docker-up          # Start all 11 Docker services
 make docker-down        # Stop all Docker services
 ```

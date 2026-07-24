@@ -138,7 +138,7 @@ def _get_route_path(request: Request) -> str:
 
 def setup_security_middleware(app: FastAPI) -> None:
     rate_limit = settings.rate_limit_per_minute
-    app.add_middleware(RateLimitMiddleware, max_requests=rate_limit, window_seconds=60)
+    app.add_middleware(RateLimitMiddleware, max_requests=rate_limit, window_seconds=60)  # type: ignore[arg-type]
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(AuditMiddleware)
     if settings.metrics_enabled:

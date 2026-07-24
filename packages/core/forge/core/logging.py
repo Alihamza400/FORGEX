@@ -20,4 +20,4 @@ def configure_logging() -> None:
 
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
-    return structlog.get_logger(name or __name__)
+    return structlog.get_logger(name or __name__)  # type: ignore[no-any-return]

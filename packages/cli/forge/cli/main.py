@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 
 import typer
-from forge.cli import auth as auth_mod
+from forge.cli import auth as auth_mod  # type: ignore[import-untyped]
 from forge.cli import build as build_mod
 from forge.cli import deploy as deploy_mod
 from forge.cli import orchestrate as orchestrate_mod
@@ -36,13 +36,13 @@ def main_callback(
 
 
 @app.command()
-def version():
+def version() -> None:
     """Show the Forge version."""
     console.print("[bold cyan]Forge v0.1.0[/bold cyan]")
 
 
 @app.command()
-def status():
+def status() -> None:
     """Show the status of the Forge stack."""
     table = Table(title="Forge Stack Status")
     table.add_column("Service", style="cyan")
@@ -62,7 +62,7 @@ def status():
 @app.command()
 def validate(
     config_path: str = typer.Argument(..., help="Path to agent YAML/JSON config"),
-):
+) -> None:
     """Validate an agent configuration file."""
     path = Path(config_path)
     if not path.exists():
@@ -86,7 +86,7 @@ def run(
     config_path: str = typer.Argument(..., help="Path to agent YAML/JSON config"),
     task: str = typer.Option("", "--task", "-t", help="Task to run (use --stdin to pipe input)"),
     stdin: bool = typer.Option(False, "--stdin", help="Read task from stdin"),
-):
+) -> None:
     """Run an agent with the given task."""
     path = Path(config_path)
     if not path.exists():
@@ -113,7 +113,7 @@ def run(
         console.print("[red]Error:[/red] Task cannot be empty")
         raise typer.Exit(1)
 
-    async def _run():
+    async def _run() -> None:
         runtime = AgentRuntime(config=config)
         try:
             await runtime.initialize()
@@ -162,7 +162,7 @@ def orchestrate_command(
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed sub-task results"
     ),
-):
+) -> None:
     """Run a multi-agent orchestration."""
     orchestrate_mod.run_orchestrate(
         task=task,
@@ -187,7 +187,7 @@ def build(
     tag: str = typer.Option("", "--tag", "-t", help="Image tag (default: auto)"),
     push: bool = typer.Option(False, "--push", "-p", help="Push image to registry after build"),
     registry: str = typer.Option("", "--registry", "-r", help="Registry to push to"),
-):
+) -> None:
     """Build a Docker image for an agent."""
     build_mod.agent(config_path=config_path, tag=tag, push=push, registry=registry)
 
@@ -201,7 +201,7 @@ def deploy(
     image: str = typer.Option("", "--image", "-i", help="Container image"),
     kubeconfig: str = typer.Option("", "--kubeconfig", "-k", help="Path to kubeconfig"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print manifests without applying"),
-):
+) -> None:
     """Deploy an agent to Kubernetes."""
     deploy_mod.agent(
         config_path=config_path,
@@ -219,7 +219,7 @@ def up(
     detach: bool = typer.Option(True, "--detach", "-d", help="Run containers in background"),
     build: bool = typer.Option(False, "--build", "-b", help="Rebuild images before starting"),
     env_file: str = typer.Option("", "--env-file", "-e", help="Path to .env file"),
-):
+) -> None:
     """Start the local Forge stack (Docker Compose)."""
     stack_mod.up(detach=detach, build=build, env_file=env_file)
 
@@ -227,7 +227,7 @@ def up(
 @app.command()
 def down(
     volumes: bool = typer.Option(False, "--volumes", "-v", help="Remove named volumes"),
-):
+) -> None:
     """Stop the local Forge stack."""
     stack_mod.down(volumes=volumes)
 
@@ -236,12 +236,12 @@ def down(
 def logs(
     follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output"),
     tail: int = typer.Option(100, "--tail", "-n", help="Number of lines to show"),
-):
+) -> None:
     """Show logs from the local Forge stack."""
     stack_mod.logs(follow=follow, tail=tail)
 
 
 @app.command()
-def ps():
+def ps() -> None:
     """List running containers in the Forge stack."""
     stack_mod.ps()

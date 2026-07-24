@@ -43,7 +43,7 @@ async def web_search(query: str, max_results: int = 5) -> str:
 
 
 def _parse_duckduckgo_results(html: str, max_results: int) -> list[dict[str, str]]:
-    results = []
+    results: list[dict[str, str]] = []
     lines = html.split("\n")
     in_result = False
     current: dict[str, str] = {}

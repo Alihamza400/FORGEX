@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from forge.auth.dependencies import get_current_user, require_permission
 from forge.core.agent_config import AgentConfig, TaskResult
@@ -29,16 +31,16 @@ class ValidateResponse(BaseModel):
 
 
 @router.get("/agents")
-async def list_agents(_=Depends(require_permission("agent:list"))):
+async def list_agents(_: Any = Depends(require_permission("agent:list"))) -> dict[str, Any]:
     registry = get_registry()
-    return {"agents": [a.model_dump() for a in registry.list()]}
+    return {"agents": [a.model_dump() for a in registry.list_agents()]}
 
 
 @router.post("/agents/validate", response_model=ValidateResponse)
 async def validate_agent(
     req: ValidateRequest,
-    _=Depends(require_permission("agent:create")),
-):
+    _: Any = Depends(require_permission("agent:create")),
+) -> ValidateResponse:
     try:
         config = req.config or load_agent_config(req.config_path)
         return ValidateResponse(valid=True, name=config.name)
@@ -49,8 +51,8 @@ async def validate_agent(
 @router.post("/agents/run", response_model=TaskResult)
 async def run_agent(
     req: RunRequest,
-    _=Depends(get_current_user),
-):
+    _: Any = Depends(get_current_user),
+) -> TaskResult:
     try:
         if req.config:
             config = req.config

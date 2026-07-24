@@ -77,7 +77,7 @@ class MessageBus:
             payload=payload,
         )
         key = self._response(request.correlation_id)
-        await self._state.cache_set(key, response.model_dump_json(), ttl=60)
+        await self._state.cache_set(key, response.model_dump_json(), ttl_seconds=60)
 
     def register_handler(self, agent_name: str, handler: MessageHandler) -> None:
         self._handlers.setdefault(agent_name, []).append(handler)
@@ -85,7 +85,7 @@ class MessageBus:
     async def listen(self, agent_name: str) -> AsyncIterator[AgentMessage]:
         async for raw in self._state.subscribe_logs(agent_name):
             try:
-                yield AgentMessage.model_validate_json(raw)
+                yield AgentMessage.model_validate(raw)
             except Exception:
                 continue
 

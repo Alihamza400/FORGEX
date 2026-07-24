@@ -2,18 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import signal
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
-from forge.api.middleware import setup_security_middleware
-from forge.api.routes import agents, auth, health, orchestrator
+from forge.api.middleware import setup_security_middleware  # type: ignore[import-untyped]
+from forge.api.routes import agents, auth, health, orchestrator  # type: ignore[import-untyped]
 from forge.core.config import settings
 from forge.core.logging import configure_logging, get_logger
 from forge.storage.postgres import Database as PgDatabase
 from prometheus_client import REGISTRY, generate_latest
+from starlette.responses import Response
 
 logger = get_logger("forge.api")
 
@@ -21,7 +24,7 @@ _shutdown_event: asyncio.Event | None = None
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     global _shutdown_event
     configure_logging()
 
@@ -46,7 +49,7 @@ async def lifespan(_app: FastAPI):
 
     loop = asyncio.get_event_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(handle_shutdown(s)))
+        loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(handle_shutdown(s)))  # type: ignore[misc]
 
     try:
         yield
@@ -108,11 +111,11 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def log_requests(request: Request, call_next: Any) -> Response:
     logger.info("request", method=request.method, path=request.url.path)
     response = await call_next(request)
     logger.info("response", status=response.status_code)
-    return response
+    return response  # type: ignore[no-any-return]
 
 
 setup_security_middleware(app)
@@ -124,7 +127,7 @@ app.include_router(orchestrator.router, tags=["orchestrator"])
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, Any]:
     return {
         "name": "Forge API",
         "version": "0.1.0",
@@ -133,19 +136,19 @@ async def root():
 
 
 @app.get("/readyz")
-async def readyz():
+async def readyz() -> dict[str, str]:
     return {"status": "ok"}
 
 
 @app.get("/livez")
-async def livez():
+async def livez() -> dict[str, str]:
     return {"status": "alive"}
 
 
 if settings.metrics_enabled:
 
     @app.get("/metrics")
-    async def metrics_endpoint():
+    async def metrics_endpoint() -> PlainTextResponse:
         return PlainTextResponse(generate_latest(REGISTRY), media_type="text/plain; version=0.0.4")
 
 

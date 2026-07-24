@@ -38,6 +38,11 @@ def _wait_for_service(url: str, timeout: int = 60) -> bool:
 
 
 @pytest.fixture(scope="session")
+def api_url() -> str:
+    return "http://localhost:8000"
+
+
+@pytest.fixture(scope="session")
 def docker_compose_path() -> Path:
     return Path(__file__).parent.parent.parent / "packages" / "deploy" / "docker-compose.yml"
 

@@ -24,7 +24,8 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.wheel]
-only-include = ["forge"]
+packages = ["forge"]
+include = ["forge/py.typed"]
 
 [build-system]
 requires = ["hatchling"]

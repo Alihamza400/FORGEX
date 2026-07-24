@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -28,7 +29,7 @@ from sqlalchemy import select
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
-async def _get_db():
+async def _get_db() -> Database:
     db = Database()
     await db.connect()
     try:

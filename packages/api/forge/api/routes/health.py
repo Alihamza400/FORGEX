@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends
@@ -59,7 +60,7 @@ async def _check_redis() -> ServiceHealth:
     try:
         import redis.asyncio as aioredis
 
-        r = aioredis.from_url(settings.redis_url, socket_connect_timeout=3)
+        r = aioredis.from_url(settings.redis_url, socket_connect_timeout=3)  # type: ignore[no-untyped-call]
         await r.ping()
         await r.aclose()
         latency = int((asyncio.get_event_loop().time() - start) * 1000)
@@ -100,7 +101,7 @@ async def _check_minio() -> ServiceHealth:
 
 
 @router.get("/health")
-async def health_check(_=Depends(get_optional_user)):
+async def health_check(_: dict[str, Any] | None = Depends(get_optional_user)) -> dict[str, Any]:
     checks = await asyncio.gather(
         _check_ollama(),
         _check_postgres(),
@@ -113,11 +114,11 @@ async def health_check(_=Depends(get_optional_user)):
     services = {}
     overall = "ok"
     for c in checks:
-        if isinstance(c, Exception):
+        if isinstance(c, BaseException):
             services["unknown"] = {"status": "error", "error": str(c)}
             overall = "degraded"
         else:
-            svc = {"status": c.status}
+            svc: dict[str, Any] = {"status": c.status}
             if c.latency_ms is not None:
                 svc["latency_ms"] = c.latency_ms
             if c.error:

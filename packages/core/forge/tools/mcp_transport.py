@@ -55,15 +55,16 @@ class StdioTransport(MCPTransport):
         if self._process.stdout is None or self._process.stdin is None:
             raise MCPTransportError("Failed to create stdio pipes")
 
+        loop = asyncio.get_running_loop()
         self._reader = asyncio.StreamReader()
         protocol = asyncio.StreamReaderProtocol(self._reader)
-        await self._process.stdout.connect_read_pipe(protocol)
+        await loop.connect_read_pipe(lambda: protocol, self._process.stdout)
 
-        transport, _ = await asyncio.get_running_loop().connect_write_pipe(
+        transport, _ = await loop.connect_write_pipe(
             lambda: asyncio.Protocol(),
             self._process.stdin,
         )
-        self._writer = transport.get_extra_info("writer")  # type: ignore[union-attr]
+        self._writer = transport.get_extra_info("writer")
 
         logger.info("mcp stdio transport connected", pid=self._process.pid)
 
@@ -85,7 +86,7 @@ class StdioTransport(MCPTransport):
                 if not line:
                     continue
                 try:
-                    return json.loads(line)
+                    return json.loads(line)  # type: ignore[no-any-return]
                 except json.JSONDecodeError as e:
                     logger.warning("failed to parse mcp message", error=str(e))
                     continue
@@ -135,14 +136,13 @@ class HTTPTransport(MCPTransport):
         response.raise_for_status()
 
     async def receive(self) -> dict[str, Any] | None:
+        if self._client is None:
+            raise MCPTransportError("Transport not connected")
         if self._event_source is None:
-            self._event_source = await self._client.get(  # type: ignore[union-attr]
+            self._event_source = await self._client.get(
                 f"{self.url}/events",
                 headers={"Accept": "text/event-stream"},
             )
-
-        if self._event_source is None:
-            raise MCPTransportError("Transport not connected")
 
         buf = ""
         async for line in self._event_source.aiter_lines():
@@ -150,12 +150,12 @@ class HTTPTransport(MCPTransport):
                 data = line[6:].strip()
                 if data:
                     try:
-                        return json.loads(data)
+                        return json.loads(data)  # type: ignore[no-any-return]
                     except json.JSONDecodeError as e:
                         logger.warning("failed to parse SSE data", error=str(e))
             elif line == "" and buf:
                 try:
-                    return json.loads(buf)
+                    return json.loads(buf)  # type: ignore[no-any-return]
                 except json.JSONDecodeError:
                     pass
                 buf = ""

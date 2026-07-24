@@ -41,7 +41,7 @@ class RedisState:
     async def connect(self) -> None:
         logger.info("connecting to redis", url=self.url)
         try:
-            self._client = aioredis.from_url(
+            self._client = aioredis.from_url(  # type: ignore[no-untyped-call]
                 self.url,
                 decode_responses=True,
                 socket_connect_timeout=5,
@@ -86,13 +86,13 @@ class RedisState:
         task.created_at = task.created_at or datetime.now(UTC).isoformat()
         key = self._key("queue", queue)
         data = self._serialize(task.__dict__)
-        await self.client.rpush(key, data)
+        await self.client.rpush(key, data)  # type: ignore[misc]
         logger.debug("pushed task", queue=queue, task_id=task.id)
         return task.id
 
     async def pop_task(self, queue: str, timeout: int = 5) -> TaskItem | None:
         key = self._key("queue", queue)
-        result = await self.client.blpop(key, timeout=timeout)
+        result = await self.client.blpop(key, timeout=timeout)  # type: ignore[arg-type, misc]
         if result is None:
             return None
         _, data = result
@@ -103,7 +103,7 @@ class RedisState:
 
     async def task_length(self, queue: str) -> int:
         key = self._key("queue", queue)
-        return await self.client.llen(key)
+        return await self.client.llen(key)  # type: ignore[no-any-return, misc]
 
     # --- Agent State ---
 
@@ -157,7 +157,7 @@ class RedisState:
     async def cache_delete(self, key: str) -> bool:
         full_key = self._key("cache", key)
         result = await self.client.delete(full_key)
-        return result > 0
+        return result > 0  # type: ignore[no-any-return]
 
     # --- Log Streaming (Pub/Sub) ---
 

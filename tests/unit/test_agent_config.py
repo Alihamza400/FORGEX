@@ -14,7 +14,6 @@ class TestAgentConfig:
         assert isinstance(config.model, ModelConfig)
         assert config.tools == []
         assert isinstance(config.memory, MemoryConfig)
-
     def test_default_values(self):
         config = AgentConfig(name="a", role="r", goal="g")
         assert config.model.name == "llama3.2:3b"
@@ -22,11 +21,9 @@ class TestAgentConfig:
         assert config.model.temperature == 0.7
         assert config.max_iterations == 10
         assert config.memory.type == "none"
-
     def test_invalid_empty_name(self):
         with pytest.raises(ValidationError):
             AgentConfig(name="", role="r", goal="g")
-
     def test_duplicate_tool_names_raises(self):
         with pytest.raises(ValidationError, match="must be unique"):
             AgentConfig(
@@ -38,7 +35,6 @@ class TestAgentConfig:
                     ToolConfig(name="web_search"),
                 ],
             )
-
     def test_custom_model_config(self):
         config = AgentConfig(
             name="a",
@@ -49,7 +45,6 @@ class TestAgentConfig:
         assert config.model.name == "mixtral:8x7b"
         assert config.model.temperature == 0.1
         assert config.model.max_tokens == 8192
-
     def test_tools_with_config(self):
         config = AgentConfig(
             name="a",
@@ -61,7 +56,6 @@ class TestAgentConfig:
         )
         assert config.tools[0].type == "mcp"
         assert config.tools[0].config["allowed_dirs"] == ["/data"]
-
     def test_memory_config(self):
         config = AgentConfig(
             name="a",

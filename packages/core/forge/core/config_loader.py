@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 from forge.core.agent_config import AgentConfig
 from forge.core.logging import get_logger
 

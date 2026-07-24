@@ -22,7 +22,7 @@ def _get_api_url() -> str:
 
 def _load_credentials() -> dict[str, Any]:
     if TOKEN_FILE.exists():
-        return json.loads(TOKEN_FILE.read_text())
+        return json.loads(TOKEN_FILE.read_text())  # type: ignore[no-any-return]
     return {}
 
 
@@ -55,7 +55,7 @@ def register(
         ..., "--password", "-p", prompt=True, hide_input=True,
         confirmation_prompt=True, help="Password",
     ),
-):
+) -> None:
     """Register a new user account."""
     url = f"{_get_api_url()}/api/v1/auth/register"
     try:
@@ -84,7 +84,7 @@ def login(
     password: str = typer.Option(
         ..., "--password", "-p", prompt=True, hide_input=True, help="Password",
     ),
-):
+) -> None:
     """Login and save credentials."""
     url = f"{_get_api_url()}/api/v1/auth/login"
     try:
@@ -113,14 +113,14 @@ def login(
 
 
 @auth_app.command()
-def logout():
+def logout() -> None:
     """Clear saved credentials."""
     _clear_credentials()
     console.print("[bold green]Logged out successfully[/bold green]")
 
 
 @auth_app.command()
-def status():
+def status() -> None:
     """Check authentication status."""
     creds = _load_credentials()
     if not creds:
@@ -152,7 +152,7 @@ def api_key(
     expires_days: int = typer.Option(
         365, "--expires-days", "-d", help="Days until key expires",
     ),
-):
+) -> None:
     """Create a new API key."""
     url = f"{_get_api_url()}/api/v1/auth/api-keys"
     try:
@@ -183,7 +183,7 @@ def api_key(
 
 
 @auth_app.command(name="list-keys")
-def list_api_keys():
+def list_api_keys() -> None:
     """List all API keys for the current user."""
     url = f"{_get_api_url()}/api/v1/auth/api-keys"
     try:
@@ -223,7 +223,7 @@ def list_api_keys():
 @auth_app.command(name="revoke-key")
 def revoke_api_key(
     key_id: int = typer.Argument(..., help="API key ID to revoke"),
-):
+) -> None:
     """Revoke an API key."""
     url = f"{_get_api_url()}/api/v1/auth/api-keys/{key_id}"
     try:
