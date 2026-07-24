@@ -1,8 +1,19 @@
 [project]
 name = "forge-core"
 version = "0.1.0"
-description = "Forge agent runtime core library"
+description = "Core library for Forge — multi-agent AI platform runtime, auth, LLM client, memory, orchestration, and tools"
 requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Forge Contributors" }]
+readme = "README.md"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
 dependencies = [
     "pydantic>=2.0,<3.0",
     "pydantic-settings>=2.0,<3.0",
@@ -22,6 +33,11 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-http>=1.25,<2.0",
     "opentelemetry-semantic-conventions>=0.46b0,<1.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Alihamza400/FORGEX"
+Repository = "https://github.com/Alihamza400/FORGEX"
+Documentation = "https://github.com/Alihamza400/FORGEX"
 
 [tool.hatch.build.targets.wheel]
 packages = ["forge"]

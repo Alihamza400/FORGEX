@@ -89,16 +89,25 @@ FORGEX is a production-ready platform for building, orchestrating, and deploying
 ### Prerequisites
 
 - Python 3.12+
-- [uv](https://docs.astral.sh/uv/) package manager
 - Docker & Docker Compose (for infrastructure services)
 - [Ollama](https://ollama.ai/) (for local LLM inference)
 
-### 1. Install
+### 1. Install the CLI
 
 ```bash
-git clone https://github.com/Alihamza400/FORGEX.git
-cd FORGEX
-make install
+pip install forge-cli
+```
+
+Or with `uv`:
+
+```bash
+uv tool install forge-cli
+```
+
+Verify it works:
+
+```bash
+forge version
 ```
 
 ### 2. Configure
@@ -139,6 +148,14 @@ forge orchestrate "Build a web application" \
 ```
 
 ## CLI
+
+### Install
+
+```bash
+pip install forge-cli
+# or
+uv tool install forge-cli
+```
 
 The `forge` CLI provides full control over agents, orchestrations, deployments, and infrastructure.
 

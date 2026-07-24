@@ -1,14 +1,29 @@
 [project]
 name = "forge-cli"
 version = "0.1.0"
-description = "Forge command-line interface"
+description = "Command-line interface for Forge — self-hosted multi-agent AI platform"
 requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Forge Contributors" }]
+readme = "README.md"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
-    "forge-core",
+    "forge-core>=0.1.0",
     "typer[all]>=0.12,<1.0",
     "rich>=13.0,<14.0",
     "httpx>=0.27,<1.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Alihamza400/FORGEX"
+Repository = "https://github.com/Alihamza400/FORGEX"
+Documentation = "https://github.com/Alihamza400/FORGEX"
 
 [project.scripts]
 forge = "forge.cli.main:app"
