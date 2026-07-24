@@ -1,0 +1,19 @@
+apiVersion: v2
+name: forge
+description: Forge — self-hosted multi-agent AI platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/forge/forge
+sources:
+  - https://github.com/forge/forge
+maintainers:
+  - name: Forge Contributors
+    email: team@forge.ai
+icon: https://forge.ai/icon.png
+keywords:
+  - ai
+  - agents
+  - llm
+  - mcp
+  - self-hosted

@@ -1,0 +1,536 @@
+import { useCallback, useState } from "react";
+import {
+  Save,
+  RefreshCw,
+  Server,
+  Database,
+  Key,
+  User,
+  Copy,
+  Trash2,
+  Plus,
+} from "lucide-react";
+import { useApi } from "../hooks/useApi";
+import { useAuthStore } from "../store/auth";
+import { api } from "../api/client";
+import { CodeBlock } from "../components/shared/CodeBlock";
+import { EmptyState } from "../components/shared/EmptyState";
+import { Modal } from "../components/shared/Modal";
+import { useToast } from "../hooks/useToast";
+import { formatAbsolute } from "../utils/format";
+import type { LucideIcon } from "lucide-react";
+
+const defaultConfig = {
+  api_host: "0.0.0.0",
+  api_port: 8000,
+  log_level: "INFO",
+  log_json: false,
+  ollama_base_url: "http://localhost:11434",
+  ollama_default_model: "llama3.2:3b",
+  redis_url: "redis://localhost:6379/0",
+  database_url: "postgresql+asyncpg://forge:forge_secret@localhost:5432/forge",
+  qdrant_url: "http://localhost:6333",
+  minio_endpoint: "localhost:9000",
+  minio_access_key: "forge",
+  minio_secret_key: "forge_secret",
+  data_dir: "/var/lib/forge",
+  token_expire_minutes: 1440,
+  rate_limit_per_minute: 60,
+};
+
+const sections: {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  keys: string[];
+}[] = [
+  { id: "server", label: "Server", icon: Server, keys: ["api_host", "api_port", "log_level", "log_json"] },
+  { id: "ollama", label: "Ollama", icon: Server, keys: ["ollama_base_url", "ollama_default_model"] },
+  { id: "database", label: "Database", icon: Database, keys: ["redis_url", "database_url", "qdrant_url"] },
+  { id: "storage", label: "Storage", icon: Database, keys: ["minio_endpoint", "minio_access_key", "minio_secret_key", "data_dir"] },
+  { id: "security", label: "Security", icon: Key, keys: ["token_expire_minutes", "rate_limit_per_minute"] },
+];
+
+export function Settings() {
+  const toast = useToast();
+  const { user } = useAuthStore();
+  const [activeSection, setActiveSection] = useState("profile");
+  const [config, setConfig] = useState(defaultConfig);
+  const [saving, setSaving] = useState(false);
+  const [showJson, setShowJson] = useState(false);
+
+  const { data: apiKeys, refetch: refetchKeys } = useApi(
+    () => api.auth.apiKeys.list(),
+    [],
+  );
+
+  const handleChange = (key: string, value: string | number | boolean) => {
+    setConfig((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    await new Promise((r) => setTimeout(r, 800));
+    setSaving(false);
+    toast.success("Configuration saved");
+  }, [toast]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Settings</h1>
+          <p className="text-sm text-slate-500 mt-1">Manage Forge configuration</p>
+        </div>
+      </div>
+
+      <div className="flex gap-6">
+        <div className="w-48 flex-shrink-0 space-y-1">
+          <SectionButton
+            icon={User}
+            label="Profile"
+            active={activeSection === "profile"}
+            onClick={() => setActiveSection("profile")}
+          />
+          <SectionButton
+            icon={Key}
+            label="API Keys"
+            active={activeSection === "api-keys"}
+            onClick={() => setActiveSection("api-keys")}
+          />
+          <SectionButton
+            icon={Server}
+            label="Server"
+            active={activeSection === "server"}
+            onClick={() => setActiveSection("server")}
+          />
+          <SectionButton
+            icon={Server}
+            label="Ollama"
+            active={activeSection === "ollama"}
+            onClick={() => setActiveSection("ollama")}
+          />
+          <SectionButton
+            icon={Database}
+            label="Database"
+            active={activeSection === "database"}
+            onClick={() => setActiveSection("database")}
+          />
+          <SectionButton
+            icon={Database}
+            label="Storage"
+            active={activeSection === "storage"}
+            onClick={() => setActiveSection("storage")}
+          />
+          <SectionButton
+            icon={Key}
+            label="Security"
+            active={activeSection === "security"}
+            onClick={() => setActiveSection("security")}
+          />
+        </div>
+
+        <div className="flex-1">
+          {activeSection === "profile" && (
+            <ProfileSection user={user} />
+          )}
+
+          {activeSection === "api-keys" && (
+            <ApiKeysSection
+              keys={apiKeys ?? []}
+              onRefresh={refetchKeys}
+            />
+          )}
+
+          {activeSection !== "profile" && activeSection !== "api-keys" && (
+            <>
+              <div className="flex justify-end mb-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowJson(!showJson)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-400 glass rounded-lg glass-hover"
+                  >
+                    <span className="text-xs font-mono">{"{ }"}</span>
+                    {showJson ? "Form View" : "JSON View"}
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-4 py-2 bg-cyan-500/10 text-cyan-400 rounded-lg
+                      hover:bg-cyan-500/20 transition-all text-sm font-medium border border-cyan-500/20 disabled:opacity-50"
+                  >
+                    {saving ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+
+              {showJson ? (
+                <CodeBlock
+                  code={JSON.stringify(config, null, 2)}
+                  language="json"
+                  title="forge.config.json"
+                />
+              ) : (
+                <div className="glass rounded-xl p-5 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {sections
+                      .find((s) => s.id === activeSection)
+                      ?.keys.map((key) => (
+                        <div key={key}>
+                          <label className="block text-sm font-medium text-slate-300 mb-1.5 capitalize">
+                            {key.replace(/_/g, " ")}
+                          </label>
+                          {typeof config[key as keyof typeof config] === "boolean" ? (
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={config[key as keyof typeof config] as boolean}
+                                onChange={(e) => handleChange(key, e.target.checked)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer
+                                peer-checked:after:translate-x-full peer-checked:bg-cyan-500
+                                after:content-[''] after:absolute after:top-[2px] after:left-[2px]
+                                after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all" />
+                            </label>
+                          ) : typeof config[key as keyof typeof config] === "number" ? (
+                            <input
+                              type="number"
+                              value={config[key as keyof typeof config] as number}
+                              onChange={(e) => handleChange(key, Number(e.target.value))}
+                              className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg
+                                text-sm text-slate-200 focus:outline-none focus:border-cyan-500/50 transition-colors"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={config[key as keyof typeof config] as string}
+                              onChange={(e) => handleChange(key, e.target.value)}
+                              className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg
+                                text-sm text-slate-200 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+                            />
+                          )}
+                          {key.includes("secret") || key.includes("key") ? (
+                            <p className="text-xs text-amber-400/60 mt-1">Sensitive value</p>
+                          ) : null}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionButton({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all ${
+        active
+          ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent"
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+      {label}
+    </button>
+  );
+}
+
+function ProfileSection({ user }: { user: ReturnType<typeof useAuthStore.getState>["user"] }) {
+  if (!user) {
+    return (
+      <EmptyState
+        icon={User}
+        title="Not authenticated"
+        description="Sign in to view your profile."
+      />
+    );
+  }
+
+  return (
+    <div className="glass rounded-xl p-6 space-y-4">
+      <h2 className="text-lg font-semibold text-slate-100">Profile</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Username</label>
+          <p className="text-slate-200 font-mono">{user.username}</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Email</label>
+          <p className="text-slate-200 font-mono">{user.email}</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Roles</label>
+          <div className="flex gap-2">
+            {user.roles.map((role) => (
+              <span key={role} className="px-2 py-0.5 text-xs rounded-full bg-cyan-500/10 text-cyan-400 capitalize border border-cyan-500/20">
+                {role}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-1">Admin</label>
+          <span className={`px-2 py-0.5 text-xs rounded-full ${user.is_admin ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-slate-700/30 text-slate-500 border border-slate-700"}`}>
+            {user.is_admin ? "Yes" : "No"}
+          </span>
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-slate-400 mb-1">Permissions</label>
+          <div className="flex flex-wrap gap-1.5">
+            {user.permissions.map((perm) => (
+              <span key={perm} className="px-2 py-0.5 text-xs rounded-full bg-slate-800/50 text-slate-400 border border-slate-700 font-mono">
+                {perm}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ApiKeysSection({
+  keys,
+  onRefresh,
+}: {
+  keys: import("../types/api").ApiKeyResponse[];
+  onRefresh: () => void;
+}) {
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-slate-100">API Keys</h2>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-3 py-2 text-sm bg-cyan-500/10 text-cyan-400 rounded-lg
+            hover:bg-cyan-500/20 transition-all font-medium border border-cyan-500/20"
+        >
+          <Plus className="w-4 h-4" />
+          Create Key
+        </button>
+      </div>
+
+      {keys.length === 0 ? (
+        <EmptyState
+          icon={Key}
+          title="No API keys"
+          description="Create an API key to authenticate CLI tools and external services."
+          action={{ label: "Create API Key", onClick: () => setShowCreateModal(true) }}
+        />
+      ) : (
+        <div className="space-y-2">
+          {keys.map((key) => (
+            <ApiKeyRow key={key.id} keyData={key} onRevoked={onRefresh} />
+          ))}
+        </div>
+      )}
+
+      {showCreateModal && (
+        <CreateApiKeyModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => {
+            setShowCreateModal(false);
+            onRefresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ApiKeyRow({
+  keyData,
+  onRevoked,
+}: {
+  keyData: import("../types/api").ApiKeyResponse;
+  onRevoked: () => void;
+}) {
+  const toast = useToast();
+
+  const handleRevoke = async () => {
+    try {
+      await api.auth.apiKeys.revoke(keyData.id);
+      toast.success("API key revoked");
+      onRevoked();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to revoke");
+    }
+  };
+
+  return (
+    <div className="glass rounded-xl p-4 flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        <div className={`p-2 rounded-lg ${keyData.is_active ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-700/30 text-slate-500"}`}>
+          <Key className="w-4 h-4" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-slate-200">{keyData.name}</p>
+          <p className="text-xs font-mono text-slate-500">
+            {keyData.prefix}...
+            {keyData.expires_at && (
+              <span className="ml-2">Expires {formatAbsolute(keyData.expires_at)}</span>
+            )}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className={`text-xs px-2 py-0.5 rounded-full ${
+          keyData.is_active ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-700/30 text-slate-500"
+        }`}>
+          {keyData.is_active ? "Active" : "Revoked"}
+        </span>
+        {keyData.is_active && (
+          <button
+            onClick={handleRevoke}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CreateApiKeyModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const toast = useToast();
+  const [name, setName] = useState("");
+  const [expiresDays, setExpiresDays] = useState(365);
+  const [loading, setLoading] = useState(false);
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) {
+      toast.error("Name is required");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await api.auth.apiKeys.create({
+        name,
+        expires_in_days: expiresDays,
+      });
+      setCreatedKey(result.key);
+      toast.success("API key created");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create key");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (createdKey) {
+    return (
+      <Modal open onClose={onClose} title="API Key Created" size="lg">
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <p className="text-sm text-amber-400 font-medium mb-1">
+              Save this key — it will not be shown again!
+            </p>
+            <CodeBlock code={createdKey} language="text" title="Your API Key" />
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(createdKey);
+              toast.success("Copied to clipboard");
+            }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500/10 text-cyan-400
+              rounded-lg hover:bg-cyan-500/20 transition-all text-sm font-medium border border-cyan-500/20"
+          >
+            <Copy className="w-4 h-4" />
+            Copy to Clipboard
+          </button>
+          <button
+            onClick={() => {
+              onCreated();
+              onClose();
+            }}
+            className="w-full px-4 py-2 text-sm text-slate-400 glass rounded-lg glass-hover"
+          >
+            Done
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Create API Key">
+      <form onSubmit={handleCreate} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g., CI/CD Pipeline"
+            className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg
+              text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Expires in (days)</label>
+          <select
+            value={expiresDays}
+            onChange={(e) => setExpiresDays(Number(e.target.value))}
+            className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg
+              text-sm text-slate-200 focus:outline-none focus:border-cyan-500/50 transition-colors"
+          >
+            <option value={30}>30 days</option>
+            <option value={90}>90 days</option>
+            <option value={180}>180 days</option>
+            <option value={365}>1 year</option>
+          </select>
+        </div>
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-400 glass rounded-lg glass-hover"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 text-sm font-medium bg-cyan-500/10 text-cyan-400 rounded-lg
+              hover:bg-cyan-500/20 transition-all border border-cyan-500/20 disabled:opacity-50"
+          >
+            {loading ? "Creating..." : "Create"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

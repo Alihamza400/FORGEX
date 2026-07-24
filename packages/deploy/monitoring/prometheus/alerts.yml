@@ -1,0 +1,65 @@
+groups:
+  - name: forge
+    interval: 30s
+    rules:
+      - alert: APIHighErrorRate
+        expr: |
+          rate(http_requests_total{status=~"5.."}[5m])
+          /
+          rate(http_requests_total[5m])
+          > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API error rate > 5%"
+          description: "HTTP 5xx error rate is {{ $value | humanizePercentage }} over 5m"
+
+      - alert: APIHighLatency
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 latency > 2s"
+          description: "p95 latency is {{ $value }}s over 5m"
+
+      - alert: APIDown
+        expr: up{job="forge-api"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Forge API is down"
+
+      - alert: ServiceUnhealthy
+        expr: |
+          count by (job) (up{job="forge-api"} == 0) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is unreachable"
+
+      - alert: LLMHighErrorRate
+        expr: |
+          rate(llm_requests_total{status="error"}[5m])
+          /
+          rate(llm_requests_total[5m])
+          > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM error rate > 10%"
+          description: "Model {{ $labels.model }} error rate is {{ $value | humanizePercentage }}"
+
+      - alert: AgentTaskFailures
+        expr: rate(agent_tasks_total{status="error"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High agent task failure rate"
+          description: "Agent tasks failing at {{ $value }} per second"

@@ -1,0 +1,256 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Forge Helm Chart — Default Values
+# ─────────────────────────────────────────────────────────────────────────────
+
+global:
+  namespace: forge
+  imageRegistry: ""
+  imagePullSecrets: []
+  podAnnotations: {}
+
+serviceAccount:
+  name: forge
+
+# ── Infrastructure ──────────────────────────────────────────────────────
+
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16"
+    pullPolicy: IfNotPresent
+  auth:
+    database: forge
+    username: forge
+    password: forge_secret  # override via --set, external secret, or vault
+  service:
+    port: 5432
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: "1"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+
+qdrant:
+  enabled: true
+  image:
+    repository: qdrant/qdrant
+    tag: "v1.12.0"
+    pullPolicy: IfNotPresent
+  service:
+    httpPort: 6333
+    grpcPort: 6334
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 2Gi
+      cpu: "2"
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 6379
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: "1"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    fsGroup: 999
+
+minio:
+  enabled: true
+  image:
+    repository: minio/minio
+    tag: latest
+    pullPolicy: IfNotPresent
+  auth:
+    rootUser: forge
+    rootPassword: forge_secret  # override via --set or external secret
+  service:
+    apiPort: 9000
+    consolePort: 9001
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ""
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: "1"
+
+ollama:
+  enabled: true
+  image:
+    repository: ollama/ollama
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 11434
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: ""
+  keepAlive: 24h
+  resources:
+    requests:
+      memory: 8Gi
+      cpu: "2"
+    limits:
+      memory: 16Gi
+      cpu: "4"
+  securityContext:
+    runAsNonRoot: false
+
+# ── Forge API ───────────────────────────────────────────────────────────
+
+api:
+  enabled: true
+  image:
+    repository: forge/api
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  service:
+    port: 8000
+  logLevel: INFO
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: "1"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: forge.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+# ── Agents ──────────────────────────────────────────────────────────────
+
+agents:
+  # Each agent is defined as an item in this list:
+  # - name: research-agent
+  #   config: |
+  #     name: research-agent
+  #     role: Research Analyst
+  #     ...
+  #   image: forge/agent-research-agent:latest
+  #   replicas: 1
+  #   resources:
+  #     requests:
+  #       memory: 512Mi
+  #       cpu: 500m
+  #     limits:
+  #       memory: 2Gi
+  #       cpu: "2"
+  []  # override via --set or --values
+
+# ── Production Hardening ────────────────────────────────────────────────
+
+networkPolicies:
+  enabled: true
+
+podDisruptionBudgets:
+  enabled: true
+
+resourceQuotas:
+  enabled: true
+  hard:
+    requests.cpu: "16"
+    requests.memory: 32Gi
+    limits.cpu: "32"
+    limits.memory: 64Gi
+    persistentvolumeclaims: "20"
+
+# ── Global Secrets (override via --set or external secret) ─────────────
+
+secrets:
+  postgresPassword: forge_secret
+  minioAccessKey: forge
+  minioSecretKey: forge_secret
+  forgeApiKey: fk_change_me_to_a_random_secret
+
+# ── Observability & Monitoring ─────────────────────────────────────
+
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: true
+    release: prometheus
+    interval: 15s
+    scrapeTimeout: 10s
+  prometheusRule:
+    enabled: true
+    release: prometheus
+    interval: 30s
+  grafana:
+    dashboards:
+      enabled: true
+    datasources:
+      enabled: true
+  prometheus:
+    host: forge-prometheus
+    port: 9090
+  tempo:
+    host: forge-tempo
+    port: 3200
+
+# ── TLS (optional for production ingress) ─────────────────────────────
+
+tls:
+  enabled: false
+  certManager:
+    enabled: false
+    issuerName: letsencrypt-prod
+  selfSigned:
+    enabled: false
+    caSecretName: forge-ca
+  existingSecret: forge-tls

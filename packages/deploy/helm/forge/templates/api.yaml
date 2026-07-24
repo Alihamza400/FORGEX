@@ -1,0 +1,198 @@
+{{- if .Values.api.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forge-api
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    {{- include "forge.component" (dict "component" "api") | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "forge.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+        {{- with .Values.global.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "forge.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: {{ include "forge.serviceAccountName" . }}
+      containers:
+      - name: api
+        image: "{{ include "forge.image" (dict "root" . "imageSpec" .Values.api.image) }}"
+        imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.api.service.port }}
+          name: http
+          protocol: TCP
+        env:
+        - name: FORGE_API_HOST
+          value: "0.0.0.0"
+        - name: FORGE_API_PORT
+          value: {{ .Values.api.service.port | quote }}
+        - name: FORGE_LOG_LEVEL
+          value: {{ .Values.api.logLevel }}
+        - name: DATABASE_URL
+          value: "postgresql+asyncpg://{{ .Values.postgresql.auth.username }}:$(POSTGRES_PASSWORD)@forge-postgres:{{ .Values.postgresql.service.port }}/{{ .Values.postgresql.auth.database }}"
+        - name: REDIS_URL
+          value: "redis://forge-redis:{{ .Values.redis.service.port }}/0"
+        - name: QDRANT_URL
+          value: "http://forge-qdrant:{{ .Values.qdrant.service.httpPort }}"
+        - name: MINIO_ENDPOINT
+          value: "forge-minio:{{ .Values.minio.service.apiPort }}"
+        - name: OLLAMA_BASE_URL
+          value: "http://forge-ollama:{{ .Values.ollama.service.port }}"
+        - name: FORGE_API_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: forge-api-key
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: postgres-password
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: minio-access-key
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: minio-secret-key
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: {{ .Values.api.service.port }}
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: {{ .Values.api.service.port }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.api.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-api
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    {{- include "forge.component" (dict "component" "api") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.api.service.port }}
+    targetPort: {{ .Values.api.service.port }}
+    name: http
+  selector:
+    {{- include "forge.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+---
+{{- if .Values.api.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: forge-api
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    {{- include "forge.component" (dict "component" "api") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: forge-api
+  minReplicas: {{ .Values.api.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.api.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.api.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.api.autoscaling.targetMemoryUtilizationPercentage }}
+{{- end }}
+---
+{{- if .Values.api.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: forge-api
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    {{- include "forge.component" (dict "component" "api") | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.api.ingress.annotations | nindent 4 }}
+spec:
+  {{- if .Values.api.ingress.className }}
+  ingressClassName: {{ .Values.api.ingress.className }}
+  {{- end }}
+  tls:
+  - hosts:
+    {{- range .Values.api.ingress.hosts }}
+    - {{ .host | quote }}
+    {{- end }}
+    secretName: forge-tls
+  rules:
+  {{- range .Values.api.ingress.hosts }}
+  - host: {{ .host | quote }}
+    http:
+      paths:
+      {{- range .paths }}
+      - path: {{ .path }}
+        pathType: {{ .pathType }}
+        backend:
+          service:
+            name: forge-api
+            port:
+              number: {{ $.Values.api.service.port }}
+      {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,13 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.grafana.dashboards.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forge-grafana-dashboard
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  forge-overview.json: |
+{{ .Files.Get "dashboards/forge-overview.json" | nindent 4 }}
+{{- end }}

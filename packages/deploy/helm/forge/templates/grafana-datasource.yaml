@@ -1,0 +1,30 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.grafana.datasources.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forge-grafana-datasource
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    grafana_datasource: "1"
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ .Values.monitoring.prometheus.host | default "forge-prometheus" }}:{{ .Values.monitoring.prometheus.port | default 9090 }}
+        isDefault: true
+        editable: false
+      - name: Tempo
+        type: tempo
+        access: proxy
+        url: http://{{ .Values.monitoring.tempo.host | default "forge-tempo" }}:{{ .Values.monitoring.tempo.port | default 3200 }}
+        isDefault: false
+        editable: false
+        jsonData:
+          httpMethod: GET
+          serviceMap:
+            datasourceUid: prometheus
+{{- end }}

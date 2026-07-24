@@ -1,0 +1,152 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forge-api
+  namespace: forge
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: forge-api
+  template:
+    metadata:
+      labels:
+        app: forge-api
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+    spec:
+      serviceAccountName: forge
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: api
+        image: forge/api:latest
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        - name: FORGE_API_HOST
+          value: "0.0.0.0"
+        - name: FORGE_API_PORT
+          value: "8000"
+        - name: FORGE_LOG_LEVEL
+          value: "INFO"
+        - name: DATABASE_URL
+          value: "postgresql+asyncpg://forge:$(POSTGRES_PASSWORD)@forge-postgres:5432/forge"
+        - name: REDIS_URL
+          value: "redis://forge-redis:6379/0"
+        - name: QDRANT_URL
+          value: "http://forge-qdrant:6333"
+        - name: MINIO_ENDPOINT
+          value: "forge-minio:9000"
+        - name: OLLAMA_BASE_URL
+          value: "http://forge-ollama:11434"
+        - name: FORGE_API_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: forge-api-key
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: postgres-password
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: minio-access-key
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: minio-secret-key
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-api
+  namespace: forge
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http
+  selector:
+    app: forge-api
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: forge-api-hpa
+  namespace: forge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: forge-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: forge-api-pdb
+  namespace: forge
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: forge-api

@@ -1,0 +1,92 @@
+{{- if .Values.qdrant.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: forge-qdrant
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    {{- include "forge.component" (dict "component" "qdrant") | nindent 4 }}
+spec:
+  serviceName: forge-qdrant
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "forge.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: qdrant
+  template:
+    metadata:
+      labels:
+        {{- include "forge.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: qdrant
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: qdrant
+        image: "{{ include "forge.image" (dict "root" . "imageSpec" .Values.qdrant.image) }}"
+        imagePullPolicy: {{ .Values.qdrant.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.qdrant.service.httpPort }}
+          name: http
+        - containerPort: {{ .Values.qdrant.service.grpcPort }}
+          name: grpc
+        volumeMounts:
+        - name: data
+          mountPath: /qdrant/storage
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.qdrant.service.httpPort }}
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.qdrant.service.httpPort }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.qdrant.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          capabilities:
+            drop: ["ALL"]
+  {{- if .Values.qdrant.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      {{- if .Values.qdrant.persistence.storageClass }}
+      storageClassName: {{ .Values.qdrant.persistence.storageClass }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.qdrant.persistence.size }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-qdrant
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    {{- include "forge.component" (dict "component" "qdrant") | nindent 4 }}
+spec:
+  ports:
+  - name: http
+    port: {{ .Values.qdrant.service.httpPort }}
+    targetPort: {{ .Values.qdrant.service.httpPort }}
+  - name: grpc
+    port: {{ .Values.qdrant.service.grpcPort }}
+    targetPort: {{ .Values.qdrant.service.grpcPort }}
+  selector:
+    {{- include "forge.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: qdrant
+{{- end }}

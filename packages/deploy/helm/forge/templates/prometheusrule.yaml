@@ -1,0 +1,70 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: forge-alerts
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    release: {{ .Values.monitoring.prometheusRule.release | default "prometheus" }}
+spec:
+  groups:
+    - name: forge
+      interval: {{ .Values.monitoring.prometheusRule.interval | default "30s" }}
+      rules:
+        - alert: APIHighErrorRate
+          expr: |
+            rate(http_requests_total{status=~"5.."}[5m])
+            /
+            rate(http_requests_total[5m])
+            > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            {{- include "forge.labels" . | nindent 12 }}
+          annotations:
+            summary: "API error rate > 5%"
+            description: "HTTP 5xx error rate is {{`{{ $value | humanizePercentage }}`}} over 5m"
+
+        - alert: APIHighLatency
+          expr: |
+            histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+          for: 2m
+          labels:
+            severity: warning
+            {{- include "forge.labels" . | nindent 12 }}
+          annotations:
+            summary: "API p95 latency > 2s"
+            description: "p95 latency is {{`{{ $value }}`}}s over 5m"
+
+        - alert: APIDown
+          expr: up{job="forge-api"} == 0
+          for: 30s
+          labels:
+            severity: critical
+            {{- include "forge.labels" . | nindent 12 }}
+          annotations:
+            summary: "Forge API is down"
+
+        - alert: LLMHighErrorRate
+          expr: |
+            rate(llm_requests_total{status="error"}[5m])
+            /
+            rate(llm_requests_total[5m])
+            > 0.1
+          for: 2m
+          labels:
+            severity: warning
+            {{- include "forge.labels" . | nindent 12 }}
+          annotations:
+            summary: "LLM error rate > 10%"
+
+        - alert: AgentTaskFailures
+          expr: rate(agent_tasks_total{status="error"}[5m]) > 0.1
+          for: 2m
+          labels:
+            severity: warning
+            {{- include "forge.labels" . | nindent 12 }}
+          annotations:
+            summary: "High agent task failure rate"
+{{- end }}

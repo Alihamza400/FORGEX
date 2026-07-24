@@ -1,0 +1,38 @@
+{{- if .Values.podDisruptionBudgets.enabled }}
+{{- if .Values.api.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: forge-api-pdb
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "forge.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+{{- end }}
+{{- range .Values.agents }}
+{{- if gt (.replicas | default 1) 1 }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: forge-agent-{{ .name }}-pdb
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: agent
+    forge-agent: {{ .name }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "forge.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: agent
+      forge-agent: {{ .name }}
+{{- end }}
+{{- end }}
+{{- end }}

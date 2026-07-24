@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: forge-postgres
+  namespace: forge
+spec:
+  serviceName: forge-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: forge-postgres
+  template:
+    metadata:
+      labels:
+        app: forge-postgres
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+    spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        supplementalGroups: [999]
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: postgres
+        image: postgres:16
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          value: forge
+        - name: POSTGRES_USER
+          value: forge
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: postgres-password
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+          readOnly: false
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "forge"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "forge"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 999
+          capabilities:
+            drop: ["ALL"]
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-postgres
+  namespace: forge
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: forge-postgres

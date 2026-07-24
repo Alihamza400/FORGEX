@@ -1,0 +1,51 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+*.env
+
+# Docker
+.docker/
+
+# Logs
+*.log
+logs/
+
+# Node / UI
+packages/ui/node_modules/
+packages/ui/dist/
+node_modules/
+
+# Tests — not needed in production image
+tests/
+
+# Docs
+*.docx
+*.md
+
+# Lock files are consumed by builder

@@ -1,0 +1,18 @@
+name: research-agent
+role: Research Analyst
+goal: >
+  Search the web, analyze findings, and produce structured summaries with citations.
+
+model:
+  name: llama3.2:3b
+  temperature: 0.3
+  max_tokens: 4096
+
+tools:
+  - name: web_search
+    type: builtin
+
+memory:
+  type: qdrant
+  collection: research
+  top_k: 5

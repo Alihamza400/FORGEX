@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "global": {
+      "type": "object",
+      "properties": {
+        "namespace": { "type": "string", "default": "forge" },
+        "imageRegistry": { "type": "string", "default": "" },
+        "imagePullSecrets": { "type": "array", "items": { "type": "string" } },
+        "podAnnotations": { "type": "object" }
+      }
+    },
+    "postgresql": { "$ref": "#/$defs/serviceConfig" },
+    "qdrant": { "$ref": "#/$defs/serviceConfig" },
+    "redis": { "$ref": "#/$defs/serviceConfig" },
+    "minio": { "$ref": "#/$defs/serviceConfig" },
+    "ollama": { "$ref": "#/$defs/serviceConfig" },
+    "api": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "$ref": "#/$defs/imageSpec" },
+        "replicas": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "service": {
+          "type": "object",
+          "properties": {
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+          }
+        },
+        "logLevel": { "type": "string", "enum": ["DEBUG", "INFO", "WARNING", "ERROR"] },
+        "resources": { "$ref": "#/$defs/resources" },
+        "securityContext": { "$ref": "#/$defs/securityContext" },
+        "autoscaling": { "$ref": "#/$defs/autoscaling" },
+        "ingress": { "$ref": "#/$defs/ingress" }
+      }
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "config"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "config": { "type": "string" },
+          "image": { "type": "string" },
+          "replicas": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "resources": { "$ref": "#/$defs/resources" }
+        }
+      }
+    },
+    "networkPolicies": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "podDisruptionBudgets": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "resourceQuotas": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "hard": {
+          "type": "object",
+          "patternProperties": {
+            "^(requests|cpu|memory|limits|persistentvolumeclaims|pods)": { "type": "string" }
+          }
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "postgresPassword": { "type": "string" },
+        "minioAccessKey": { "type": "string" },
+        "minioSecretKey": { "type": "string" },
+        "forgeApiKey": { "type": "string" }
+      },
+      "required": ["postgresPassword", "minioAccessKey", "minioSecretKey", "forgeApiKey"]
+    }
+  },
+  "$defs": {
+    "serviceConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": { "$ref": "#/$defs/imageSpec" },
+        "service": {
+          "type": "object",
+          "patternProperties": {
+            "^(port|httpPort|grpcPort|apiPort|consolePort)$": { "type": "integer" }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "size": { "type": "string", "pattern": "^[0-9]+(Gi|Mi|Ti)$" },
+            "storageClass": { "type": "string" }
+          }
+        },
+        "resources": { "$ref": "#/$defs/resources" },
+        "securityContext": { "$ref": "#/$defs/securityContext" }
+      }
+    },
+    "imageSpec": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": "string" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "type": "object",
+          "properties": {
+            "memory": { "type": "string" },
+            "cpu": { "type": "string" }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "memory": { "type": "string" },
+            "cpu": { "type": "string" }
+          }
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer" },
+        "fsGroup": { "type": "integer" }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "targetMemoryUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "type": "object" },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": { "type": "string" },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hosts": { "type": "array", "items": { "type": "string" } },
+              "secretName": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

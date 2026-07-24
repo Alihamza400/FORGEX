@@ -1,0 +1,82 @@
+[project]
+name = "forge"
+version = "0.1.0"
+description = "A self-hosted platform for building and deploying multi-agent AI systems"
+authors = [{ name = "Forge Contributors" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.12"
+
+[tool.uv.workspace]
+members = [
+    "packages/core",
+    "packages/api",
+    "packages/cli",
+]
+
+[tool.uv.sources]
+forge-core = { workspace = true }
+forge-api = { workspace = true }
+forge-cli = { workspace = true }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG", "C4", "DTZ"]
+
+[tool.ruff.lint.per-file-ignores]
+"packages/core/forge/auth/dependencies.py" = ["E501", "B008"]
+"packages/core/forge/auth/*.py" = ["E501"]
+"packages/api/forge/api/*.py" = ["E501", "B008"]
+"packages/cli/forge/cli/auth.py" = ["E501", "F541"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_unimported = true
+no_implicit_reexport = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "unit: unit tests (fast, no external deps)",
+    "integration: integration tests (need Docker services)",
+    "e2e: end-to-end tests (full stack)",
+    "benchmark: performance benchmark tests",
+]
+
+[tool.coverage.run]
+source = ["forge"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "def __repr__",
+    "def __str__",
+]
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.22.1",
+    "email-validator>=2.3.0",
+    "fakeredis>=2.37.0",
+    "httpx>=0.28.1",
+    "mypy>=2.3.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-benchmark>=5.1.0",
+    "pytest-cov>=7.1.0",
+]

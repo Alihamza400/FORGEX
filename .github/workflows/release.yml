@@ -1,0 +1,172 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.6"
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
+  COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+  COSIGN_PUBLIC_KEY: ${{ secrets.COSIGN_PUBLIC_KEY }}
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Lint
+        run: uv run ruff check packages/ tests/
+
+      - name: Typecheck
+        run: uv run mypy packages/ tests/
+
+      - name: Test
+        run: uv run pytest -m unit --cov
+
+  push-api:
+    needs: [quality]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/forge-api
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/deploy/docker/api.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0.19
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/forge-api:${{ github.ref_name }}
+          format: spdx-json
+          output-file: forge-api.sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-api-sbom
+          path: forge-api.sbom.spdx.json
+
+      - name: Sign container image with cosign
+        if: env.COSIGN_PRIVATE_KEY != ''
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        if: env.COSIGN_PRIVATE_KEY != ''
+        run: |
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/forge-api@${{ steps.digest.outputs.digest }}
+
+  push-agent:
+    needs: [quality]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      matrix:
+        agent-config:
+          - config/agent.example.yaml
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract agent name
+        id: agent
+        run: |
+          NAME=$(grep '^name:' ${{ matrix.agent-config }} | head -1 | awk '{print $2}')
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/deploy/docker/agent.Dockerfile
+          build-args: |
+            AGENT_CONFIG=${{ matrix.agent-config }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/agent-${{ steps.agent.outputs.name }}:${{ github.ref_name }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/agent-${{ steps.agent.outputs.name }}:latest
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0.19
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/agent-${{ steps.agent.outputs.name }}:${{ github.ref_name }}
+          format: spdx-json
+          output-file: forge-agent.sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-agent-sbom
+          path: forge-agent.sbom.spdx.json
+
+      - name: Sign image with cosign
+        if: env.COSIGN_PRIVATE_KEY != ''
+        run: |
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/agent-${{ steps.agent.outputs.name }}@${{ steps.digest.outputs.digest }}
+
+  publish-helm:
+    needs: [quality]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p helm-repo
+          helm package packages/deploy/helm/forge/ --destination helm-repo
+
+      - name: Upload chart artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: helm-repo/*.tgz

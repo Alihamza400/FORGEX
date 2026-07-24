@@ -1,0 +1,17 @@
+name: support-bot
+role: Customer Support Agent
+goal: >
+  Answer customer questions based on the knowledge base. If unsure, escalate to a human.
+
+model:
+  name: llama3.2:3b
+  temperature: 0.2
+
+tools:
+  - name: filesystem
+    type: builtin
+
+memory:
+  type: qdrant
+  collection: kb
+  top_k: 3

@@ -1,0 +1,57 @@
+from forge.auth.dependencies import (
+    get_current_user,
+    get_optional_user,
+    require_admin,
+    require_permission,
+    require_role,
+)
+from forge.auth.rbac import ROLE_DEFINITIONS, Permission, resolve_user_permissions
+from forge.auth.schemas import (
+    ApiKeyCreatedResponse,
+    ApiKeyCreateRequest,
+    ApiKeyResponse,
+    ChangePasswordRequest,
+    CurrentUserResponse,
+    LoginRequest,
+    RegisterRequest,
+    TokenRefreshRequest,
+    TokenResponse,
+    UserResponse,
+)
+from forge.auth.service import (
+    AuthService,
+    create_access_token,
+    create_refresh_token,
+    generate_api_key,
+    hash_password,
+    verify_password,
+    verify_token,
+)
+
+__all__ = [
+    "AuthService",
+    "create_access_token",
+    "create_refresh_token",
+    "generate_api_key",
+    "hash_password",
+    "verify_password",
+    "verify_token",
+    "get_current_user",
+    "get_optional_user",
+    "require_admin",
+    "require_role",
+    "require_permission",
+    "Permission",
+    "ROLE_DEFINITIONS",
+    "resolve_user_permissions",
+    "RegisterRequest",
+    "LoginRequest",
+    "TokenResponse",
+    "TokenRefreshRequest",
+    "ChangePasswordRequest",
+    "ApiKeyCreateRequest",
+    "ApiKeyResponse",
+    "ApiKeyCreatedResponse",
+    "CurrentUserResponse",
+    "UserResponse",
+]

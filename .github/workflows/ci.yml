@@ -1,0 +1,292 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.6"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Ruff check
+        run: uv run ruff check packages/ tests/
+
+      - name: Ruff format check
+        run: uv run ruff format --check packages/ tests/
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: mypy
+        run: uv run mypy packages/ tests/
+
+  test-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Run unit tests
+        run: uv run pytest -m unit --cov --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  test-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: forge_test
+          POSTGRES_USER: forge
+          POSTGRES_PASSWORD: forge_secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://forge:forge_secret@localhost:5432/forge_test
+      REDIS_URL: redis://localhost:6379/1
+      FORGE_API_SECRET_KEY: ci-test-secret-key-1234567890abcdef
+      FORGE_LOG_LEVEL: CRITICAL
+      FORGE_METRICS_ENABLED: "false"
+      FORGE_TRACING_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Run integration tests
+        run: uv run pytest -m integration -v --timeout 60
+
+  test-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Start Docker Compose stack
+        run: >
+          docker compose -f packages/deploy/docker-compose.yml
+          --env-file .env.example
+          up -d postgres redis qdrant minio
+        timeout-minutes: 5
+
+      - name: Wait for services
+        run: |
+          echo "Waiting for postgres..."
+          timeout 60 sh -c 'until docker compose -f packages/deploy/docker-compose.yml exec -T postgres pg_isready -U forge; do sleep 2; done'
+          echo "Waiting for redis..."
+          timeout 30 sh -c 'until docker compose -f packages/deploy/docker-compose.yml exec -T redis redis-cli ping; do sleep 2; done'
+
+      - name: Run E2E tests
+        run: uv run pytest -m e2e -v --timeout 120
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f packages/deploy/docker-compose.yml down -v
+
+  test-benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Run benchmarks
+        run: uv run pytest -m benchmark -v
+
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: latest
+
+      - name: Lint Helm chart
+        run: helm lint packages/deploy/helm/forge/
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: >
+          docker build
+          -f packages/deploy/docker/api.Dockerfile
+          -t forge/api:ci
+          .
+
+      - name: Build agent image
+        run: >
+          docker build
+          -f packages/deploy/docker/agent.Dockerfile
+          --build-arg AGENT_CONFIG=./config/agent.example.yaml
+          -t forge/agent:ci
+          .
+
+  trivy-scan:
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: >
+          docker build
+          -f packages/deploy/docker/api.Dockerfile
+          -t forge/api:ci
+          .
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@v0.30
+        with:
+          image-ref: forge/api:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
+      - name: Build agent image
+        run: >
+          docker build
+          -f packages/deploy/docker/agent.Dockerfile
+          --build-arg AGENT_CONFIG=./config/agent.example.yaml
+          -t forge/agent:ci
+          .
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@v0.30
+        with:
+          image-ref: forge/agent:ci
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
+  sbom:
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: >
+          docker build
+          -f packages/deploy/docker/api.Dockerfile
+          -t forge/api:ci
+          .
+
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0.19
+        with:
+          image: forge/api:ci
+          format: spdx-json
+          output-file: forge-api.sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-api-sbom
+          path: forge-api.sbom.spdx.json
+
+      - name: Build agent image
+        run: >
+          docker build
+          -f packages/deploy/docker/agent.Dockerfile
+          --build-arg AGENT_CONFIG=./config/agent.example.yaml
+          -t forge/agent:ci
+          .
+
+      - name: Generate agent SBOM
+        uses: anchore/sbom-action@v0.19
+        with:
+          image: forge/agent:ci
+          format: spdx-json
+          output-file: forge-agent.sbom.spdx.json
+
+      - name: Upload agent SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-agent-sbom
+          path: forge-agent.sbom.spdx.json

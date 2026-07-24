@@ -1,0 +1,130 @@
+{{- range .Values.agents }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forge-agent-{{ .name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: agent
+    forge-agent: {{ .name }}
+spec:
+  replicas: {{ .replicas | default 1 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "forge.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: agent
+      forge-agent: {{ .name }}
+  template:
+    metadata:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+        {{- with $.Values.global.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "forge.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: agent
+        forge-agent: {{ .name }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: agent
+        image: {{ .image | default (printf "forge/agent-%s:latest" .name) | quote }}
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: FORGE_AGENT_CONFIG
+          value: /etc/forge/config.yaml
+        - name: OLLAMA_BASE_URL
+          value: "http://forge-ollama:{{ $.Values.ollama.service.port }}"
+        - name: QDRANT_URL
+          value: "http://forge-qdrant:{{ $.Values.qdrant.service.httpPort }}"
+        - name: REDIS_URL
+          value: "redis://forge-redis:{{ $.Values.redis.service.port }}/0"
+        - name: MINIO_ENDPOINT
+          value: "forge-minio:{{ $.Values.minio.service.apiPort }}"
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: minio-access-key
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: minio-secret-key
+        volumeMounts:
+        - name: config
+          mountPath: /etc/forge
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          {{- toYaml (.resources | default (dict "requests" (dict "memory" "512Mi" "cpu" "500m") "limits" (dict "memory" "2Gi" "cpu" "2"))) | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+      volumes:
+      - name: config
+        configMap:
+          name: forge-agent-{{ .name }}-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-agent-{{ .name }}
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: agent
+    forge-agent: {{ .name }}
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    {{- include "forge.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: agent
+    forge-agent: {{ .name }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forge-agent-{{ .name }}-config
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "forge.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: agent
+    forge-agent: {{ .name }}
+data:
+  config.yaml: |
+    {{- .config | nindent 4 }}
+{{- end }}

@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forge-agent-{{AGENT_NAME}}
+  namespace: forge
+  labels:
+    app: forge-agent
+    agent: {{AGENT_NAME}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: forge-agent
+      agent: {{AGENT_NAME}}
+  template:
+    metadata:
+      labels:
+        app: forge-agent
+        agent: {{AGENT_NAME}}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: agent
+        image: forge/agent-{{AGENT_NAME}}:{{AGENT_VERSION}}
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: FORGE_AGENT_CONFIG
+          value: /etc/forge/config.yaml
+        - name: OLLAMA_BASE_URL
+          value: http://forge-ollama:11434
+        - name: QDRANT_URL
+          value: http://forge-qdrant:6333
+        - name: REDIS_URL
+          value: redis://forge-redis:6379/0
+        - name: MINIO_ENDPOINT
+          value: forge-minio:9000
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: minio-access-key
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forge-secrets
+              key: minio-secret-key
+        volumeMounts:
+        - name: config
+          mountPath: /etc/forge
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2"
+      volumes:
+      - name: config
+        configMap:
+          name: forge-agent-{{AGENT_NAME}}-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forge-agent-{{AGENT_NAME}}
+  namespace: forge
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: forge-agent
+    agent: {{AGENT_NAME}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: forge-agent-{{AGENT_NAME}}-config
+  namespace: forge
+data:
+  config.yaml: |
+    {{AGENT_CONFIG_YAML}}

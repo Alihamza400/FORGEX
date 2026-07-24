@@ -1,0 +1,36 @@
+# Forge Agent Configuration Example
+# Reference: https://forge.dev/docs/agent-config
+
+name: research-agent
+role: Research Analyst
+goal: >
+  Search the web for information on a given topic, analyze findings,
+  and produce a well-structured summary with citations.
+
+model:
+  name: llama3.2:3b
+  provider: ollama
+  temperature: 0.3
+  max_tokens: 4096
+
+tools:
+  - name: web_search
+    type: builtin
+  - name: filesystem
+    type: mcp
+    config:
+      server_url: http://forge-mcp-filesystem:5000
+      allowed_dirs:
+        - /data
+
+memory:
+  type: qdrant
+  collection: research-context
+  embedding_model: nomic-embed-text
+  top_k: 3
+  score_threshold: 0.6
+
+max_iterations: 15
+system_prompt_extra: >
+  Always cite your sources. If you cannot find reliable information,
+  state that clearly rather than making up facts.
