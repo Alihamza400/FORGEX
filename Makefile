@@ -96,7 +96,7 @@ sign:
 # === Deploy (Kubernetes) ===
 deploy-agent:
 	@echo "Usage: make deploy-agent CONFIG=path/to/agent.yaml [NAMESPACE=forge]"
-	uv run --package forge-cli forge deploy $(CONFIG) $(if $(NAMESPACE),--namespace $(NAMESPACE))
+	uv run --package forge-cli forge deploy agent $(CONFIG) $(if $(NAMESPACE),--namespace $(NAMESPACE))
 
 deploy-stack:
 	uv run --package forge-cli forge deploy stack $(if $(NAMESPACE),--namespace $(NAMESPACE))

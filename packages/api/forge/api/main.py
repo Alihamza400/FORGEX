@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from forge.api.middleware import setup_security_middleware  # type: ignore[import-untyped]
-from forge.api.routes import agents, auth, health, orchestrator  # type: ignore[import-untyped]
+from forge.api.routes import agents, auth, health, logs, orchestrator, settings  # type: ignore[import-untyped]
 from forge.core.config import settings
 from forge.core.logging import configure_logging, get_logger
 from forge.storage.postgres import Database as PgDatabase
@@ -124,6 +124,8 @@ app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(auth.router, tags=["auth"])
 app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
 app.include_router(orchestrator.router, tags=["orchestrator"])
+app.include_router(logs.router, tags=["logs"])
+app.include_router(settings.router, tags=["settings"])
 
 
 @app.get("/")

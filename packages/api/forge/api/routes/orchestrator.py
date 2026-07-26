@@ -13,9 +13,12 @@ from forge.orchestrator.models import (
     OrchestrationConfig,
     OrchestrationResult,
     SubTaskResult,
+    SubTaskStatus,
 )
 from forge.orchestrator.planner import TaskPlanner
 from forge.orchestrator.registry import get_registry
+from forge.storage.postgres import Database
+from forge.storage.repository import TaskRepository, LogRepository
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/v1", tags=["orchestrator"])
@@ -47,6 +50,39 @@ class MessageResponse(BaseModel):
 
 _orchestrations: dict[str, OrchestrationResult] = {}
 _llm: OllamaClient | None = None
+
+
+async def persist_result(result: OrchestrationResult) -> None:
+    db = Database()
+    try:
+        await db.connect()
+        async with db.session() as session:
+            task_repo = TaskRepository(session)
+            log_repo = LogRepository(session)
+            for sr in result.sub_results:
+                status = "completed" if sr.status == SubTaskStatus.COMPLETED else "failed"
+                await task_repo.create(
+                    agent_name=sr.agent_name or "orchestrator",
+                    input=sr.description,
+                    output=sr.output or sr.error,
+                    status=status,
+                    iterations=sr.iterations or 0,
+                    tokens_used=sr.tokens or 0,
+                )
+            await log_repo.create(
+                agent_name="orchestrator",
+                level="INFO",
+                message=f"Orchestration {result.id}: {result.status.value} - {result.final_output or result.error or ''}",
+            )
+            logger.info("persisted orchestration result", id=result.id, status=result.status.value)
+    except Exception as e:
+        logger.warning("failed to persist orchestration result", error=str(e))
+    finally:
+        await db.close()
+
+
+from forge.core.logging import get_logger
+logger = get_logger("forge.api.routes.orchestrator")
 
 
 def _get_llm() -> OllamaClient:
@@ -84,6 +120,7 @@ async def orchestrate(
     try:
         result = await coordinator.orchestrate(request.task, request.config)
         _orchestrations[result.id] = result
+        await persist_result(result)
 
         return OrchestrateResponse(
             id=result.id,
