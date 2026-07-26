@@ -5,6 +5,7 @@ from forge.core.logging import get_logger
 from forge.llm.client import OllamaClient
 from forge.memory.memory_manager import MemoryManager
 from forge.runtime.loop import AgentLoop
+from forge.tools.builtins.filesystem import set_workspace
 
 logger = get_logger("forge.runtime.agent")
 
@@ -26,6 +27,10 @@ class AgentRuntime:
         await self.memory.initialize()
 
     async def run(self, task: str) -> TaskResult:
+        if self.config.workspace_dir:
+            set_workspace(self.config.workspace_dir)
+            logger.info("set agent workspace", workspace=self.config.workspace_dir)
+
         logger.info(
             "running agent",
             agent=self.config.name,

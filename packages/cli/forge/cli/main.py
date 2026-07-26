@@ -44,17 +44,29 @@ def version() -> None:
 @app.command()
 def status() -> None:
     """Show the status of the Forge stack."""
+    import httpx
+
+    services = [
+        ("API", f"http://localhost:{settings.api_port}/readyz", False),
+        ("Ollama", f"{settings.ollama_base_url}/api/tags", True),
+        ("PostgreSQL", "http://localhost:5432", True),
+        ("Qdrant", f"{settings.qdrant_url}/health", False),
+        ("Redis", f"{settings.redis_url.replace('redis://', 'http://')}/ping", True),
+        ("MinIO", f"http://{settings.minio_endpoint}/minio/health/live", False),
+    ]
+
     table = Table(title="Forge Stack Status")
     table.add_column("Service", style="cyan")
     table.add_column("Status", style="green")
     table.add_column("Endpoint", style="blue")
 
-    table.add_row("API", "ready", f"http://localhost:{settings.api_port}")
-    table.add_row("Ollama", "unknown", settings.ollama_base_url)
-    table.add_row("PostgreSQL", "unknown", "localhost:5432")
-    table.add_row("Qdrant", "unknown", "localhost:6333")
-    table.add_row("Redis", "unknown", "localhost:6379")
-    table.add_row("MinIO", "unknown", "localhost:9000")
+    for name, url, skip in services:
+        try:
+            r = httpx.get(url, timeout=3)
+            status_text = "[green]ready[/green]" if r.is_success else f"[yellow]unexpected ({r.status_code})[/yellow]"
+        except Exception:
+            status_text = "[red]down[/red]"
+        table.add_row(name, status_text, url)
 
     console.print(table)
 
@@ -183,26 +195,37 @@ app.add_typer(auth_mod.auth_app, name="auth", help="Authentication commands")
 
 @app.command()
 def build(
-    config_path: str = typer.Argument(..., help="Path to agent YAML/JSON config"),
+    config_path: str = typer.Argument("", help="Path to agent YAML/JSON config (omit to build API)"),
     tag: str = typer.Option("", "--tag", "-t", help="Image tag (default: auto)"),
     push: bool = typer.Option(False, "--push", "-p", help="Push image to registry after build"),
     registry: str = typer.Option("", "--registry", "-r", help="Registry to push to"),
+    api_build: bool = typer.Option(False, "--api", help="Build the API image instead of an agent"),
 ) -> None:
-    """Build a Docker image for an agent."""
-    build_mod.agent(config_path=config_path, tag=tag, push=push, registry=registry)
+    """Build a Docker image for an agent or the API."""
+    if api_build:
+        build_mod.api(tag=tag, push=push, registry=registry)
+    elif config_path:
+        build_mod.agent(config_path=config_path, tag=tag, push=push, registry=registry)
+    else:
+        console.print("[red]Error:[/red] Provide a config path or use --api")
+        raise typer.Exit(1)
 
 
 # ── Deploy commands ────────────────────────────────────────────────────
 
-@app.command()
-def deploy(
+deploy_app = typer.Typer(help="Deploy to Kubernetes")
+app.add_typer(deploy_app, name="deploy", help="Deploy to Kubernetes")
+
+
+@deploy_app.command("agent")
+def deploy_agent_cmd(
     config_path: str = typer.Argument(..., help="Path to agent YAML/JSON config"),
     namespace: str = typer.Option("forge", "--namespace", "-n", help="Kubernetes namespace"),
     image: str = typer.Option("", "--image", "-i", help="Container image"),
     kubeconfig: str = typer.Option("", "--kubeconfig", "-k", help="Path to kubeconfig"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print manifests without applying"),
 ) -> None:
-    """Deploy an agent to Kubernetes."""
+    """Deploy a single agent to Kubernetes."""
     deploy_mod.agent(
         config_path=config_path,
         namespace=namespace,
@@ -210,6 +233,40 @@ def deploy(
         kubeconfig=kubeconfig,
         dry_run=dry_run,
     )
+
+
+@deploy_app.command("stack")
+def deploy_stack_cmd(
+    namespace: str = typer.Option("forge", "--namespace", "-n", help="Kubernetes namespace"),
+    kubeconfig: str = typer.Option("", "--kubeconfig", "-k", help="Path to kubeconfig"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print manifests without applying"),
+) -> None:
+    """Deploy the full Forge infrastructure stack to Kubernetes."""
+    deploy_mod.stack(namespace=namespace, kubeconfig=kubeconfig, dry_run=dry_run)
+
+
+@deploy_app.command("helm-install")
+def deploy_helm_install_cmd(
+    name: str = typer.Option("forge", "--name", help="Helm release name"),
+    namespace: str = typer.Option("forge", "--namespace", "-n", help="Kubernetes namespace"),
+    values: str = typer.Option("", "--values", "-f", help="Additional values files (comma-sep)"),
+    set_args: str = typer.Option("", "--set", help="Set values (comma-sep key=val pairs)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Simulate installation"),
+) -> None:
+    """Install or upgrade the Forge Helm chart."""
+    deploy_mod.helm_install(
+        name=name, namespace=namespace, values=values,
+        set_args=set_args, dry_run=dry_run,
+    )
+
+
+@deploy_app.command("helm-uninstall")
+def deploy_helm_uninstall_cmd(
+    name: str = typer.Option("forge", "--name", help="Helm release name"),
+    namespace: str = typer.Option("forge", "--namespace", "-n", help="Kubernetes namespace"),
+) -> None:
+    """Uninstall the Forge Helm release."""
+    deploy_mod.helm_uninstall(name=name, namespace=namespace)
 
 
 # ── Stack commands ─────────────────────────────────────────────────────

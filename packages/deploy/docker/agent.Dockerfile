@@ -35,6 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /build/dist/*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl && rm -rf /tmp/*.whl
 
+COPY packages/deploy/docker/agent-entrypoint.sh /usr/local/bin/agent-entrypoint.sh
+RUN chmod +x /usr/local/bin/agent-entrypoint.sh
+
 USER forge
 WORKDIR /var/lib/forge
 
@@ -43,7 +46,7 @@ COPY ${AGENT_CONFIG} /etc/forge/config.yaml
 
 EXPOSE 8080
 
-LABEL org.opencontainers.image.source="https://github.com/forge/forge" \
+LABEL org.opencontainers.image.source="https://github.com/Alihamza400/FORGEX" \
       org.opencontainers.image.description="Forge Agent Runtime" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="0.1.0"
@@ -51,5 +54,5 @@ LABEL org.opencontainers.image.source="https://github.com/forge/forge" \
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD forge version > /dev/null 2>&1 || exit 1
 
-ENTRYPOINT ["/usr/local/bin/forge"]
+ENTRYPOINT ["/usr/local/bin/agent-entrypoint.sh"]
 CMD ["--help"]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from forge.core.config import settings
@@ -7,19 +8,33 @@ from forge.core.logging import get_logger
 
 logger = get_logger("forge.tools.builtins.filesystem")
 
-_ALLOWED_BASE = settings.data_dir.resolve()
+_DEFAULT_BASE = settings.data_dir.resolve()
+_current_workspace: str | None = None
+
+
+def set_workspace(workspace: str | None) -> None:
+    global _current_workspace
+    _current_workspace = workspace
+
+
+def _get_base() -> Path:
+    if _current_workspace:
+        p = Path(_current_workspace).resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    return _DEFAULT_BASE
 
 
 def _resolve_path(path_str: str) -> Path:
+    base = _get_base()
     path = Path(path_str)
     if not path.is_absolute():
-        path = _ALLOWED_BASE / path
+        path = base / path
     path = path.resolve()
 
-    if not str(path).startswith(str(_ALLOWED_BASE)):
-        allowed = str(_ALLOWED_BASE)
+    if not str(path).startswith(str(base)):
         raise PermissionError(
-            f"Access denied: '{path}' is outside allowed directory '{allowed}'",
+            f"Access denied: '{path}' is outside allowed directory '{base}'",
         )
 
     return path

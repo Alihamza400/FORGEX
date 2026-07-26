@@ -37,6 +37,7 @@ class AgentConfig(BaseModel):
     max_iterations: int = Field(default=10, ge=1, le=100)
     system_prompt_extra: str = ""
     environment: dict[str, str] = {}
+    workspace_dir: str = ""
 
     @model_validator(mode="after")
     def validate_tool_names(self) -> AgentConfig:
