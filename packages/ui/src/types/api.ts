@@ -262,6 +262,18 @@ export interface FileListResponse {
   files: FileInfo[];
 }
 
+export interface AgentTemplate {
+  id: number;
+  name: string;
+  description: string | null;
+  config_json: Record<string, unknown>;
+  category: string | null;
+  tags: string[] | null;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Webhook {
   id: number;
   name: string;

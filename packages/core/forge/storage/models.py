@@ -82,6 +82,23 @@ class McpServerModel(Base):
         return f"<McpServerModel(id={self.id}, name='{self.name}', status='{self.status}')>"
 
 
+class AgentTemplateModel(Base):
+    __tablename__ = "agent_templates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(128), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    config_json = Column(JSON, nullable=False)
+    category = Column(String(64), nullable=True)
+    tags = Column(JSON, nullable=True)
+    usage_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<AgentTemplateModel(id={self.id}, name='{self.name}')>"
+
+
 class WebhookModel(Base):
     __tablename__ = "webhooks"
 

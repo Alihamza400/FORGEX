@@ -5,6 +5,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Agents } from "./pages/Agents";
 import { AgentDetail } from "./pages/AgentDetail";
 import { Orchestrate } from "./pages/Orchestrate";
+import { Templates } from "./pages/Templates";
 import { Logs } from "./pages/Logs";
 import { Settings } from "./pages/Settings";
 import { Login } from "./pages/Login";
@@ -41,6 +42,14 @@ function App() {
                 element={
                   <ProtectedRoute requiredPermission="agent:list">
                     <AgentDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/templates"
+                element={
+                  <ProtectedRoute requiredPermission="agent:list">
+                    <Templates />
                   </ProtectedRoute>
                 }
               />

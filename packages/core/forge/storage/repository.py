@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from forge.core.logging import get_logger
-from forge.storage.models import AgentModel, LogModel, McpServerModel, RunModel, TaskModel, WebhookModel
+from forge.storage.models import AgentModel, AgentTemplateModel, LogModel, McpServerModel, RunModel, TaskModel, WebhookModel
 from sqlalchemy import delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -267,6 +267,79 @@ class McpServerRepository:
     async def delete(self, server_id: int) -> bool:
         result = await self.session.execute(
             delete(McpServerModel).where(McpServerModel.id == server_id),
+        )
+        await self.session.commit()
+        return result.rowcount > 0
+
+
+class AgentTemplateRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def create(
+        self,
+        name: str,
+        config_json: dict[str, Any],
+        description: str | None = None,
+        category: str | None = None,
+        tags: list[str] | None = None,
+    ) -> AgentTemplateModel:
+        tmpl = AgentTemplateModel(
+            name=name,
+            description=description,
+            config_json=config_json,
+            category=category,
+            tags=tags,
+        )
+        self.session.add(tmpl)
+        await self.session.commit()
+        await self.session.refresh(tmpl)
+        logger.info("created agent template", id=tmpl.id, name=tmpl.name)
+        return tmpl
+
+    async def get_by_id(self, tmpl_id: int) -> AgentTemplateModel | None:
+        result = await self.session.execute(
+            select(AgentTemplateModel).where(AgentTemplateModel.id == tmpl_id),
+        )
+        return result.scalar_one_or_none()
+
+    async def list_all(
+        self,
+        category: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[AgentTemplateModel]:
+        query = select(AgentTemplateModel)
+        if category:
+            query = query.where(AgentTemplateModel.category == category)
+        query = query.order_by(desc(AgentTemplateModel.usage_count)).limit(limit).offset(offset)
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def update(
+        self,
+        tmpl_id: int,
+        **kwargs: Any,
+    ) -> AgentTemplateModel | None:
+        kwargs["updated_at"] = datetime.now(UTC)
+        await self.session.execute(
+            update(AgentTemplateModel).where(AgentTemplateModel.id == tmpl_id).values(**kwargs),
+        )
+        await self.session.commit()
+        return await self.get_by_id(tmpl_id)
+
+    async def increment_usage(self, tmpl_id: int) -> AgentTemplateModel | None:
+        await self.session.execute(
+            update(AgentTemplateModel)
+            .where(AgentTemplateModel.id == tmpl_id)
+            .values(usage_count=AgentTemplateModel.usage_count + 1, updated_at=datetime.now(UTC)),
+        )
+        await self.session.commit()
+        return await self.get_by_id(tmpl_id)
+
+    async def delete(self, tmpl_id: int) -> bool:
+        result = await self.session.execute(
+            delete(AgentTemplateModel).where(AgentTemplateModel.id == tmpl_id),
         )
         await self.session.commit()
         return result.rowcount > 0

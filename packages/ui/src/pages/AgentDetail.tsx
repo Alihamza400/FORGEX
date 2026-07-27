@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Bot,
+  FileJson,
   Send,
   Cpu,
   Hash,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { api } from "../api/client";
+import { Modal } from "../components/shared/Modal";
 import { StatusBadge } from "../components/shared/StatusBadge";
 import { MetricCard } from "../components/shared/MetricCard";
 import { CodeBlock } from "../components/shared/CodeBlock";
@@ -38,6 +40,7 @@ export function AgentDetail() {
 
   const [task, setTask] = useState("");
   const [running, setRunning] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [result, setResult] = useState<TaskResult | null>(null);
   const [streamOutput, setStreamOutput] = useState("");
   const [toolCalls, setToolCalls] = useState<{ tool: string; args: string; result?: string }[]>([]);
@@ -173,6 +176,16 @@ export function AgentDetail() {
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-2xl font-bold text-slate-100">{agent.name}</h1>
               <StatusBadge status={agent.status} animated />
+              <button
+                onClick={() => setShowSaveTemplate(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium
+                  bg-violet-500/10 text-violet-400 rounded-lg hover:bg-violet-500/20 transition-all
+                  border border-violet-500/20 ml-2"
+                title="Save as template"
+              >
+                <FileJson className="w-3.5 h-3.5" />
+                Save Template
+              </button>
             </div>
             <p className="text-slate-400">{agent.role}</p>
             {agent.goal && (
@@ -335,7 +348,135 @@ export function AgentDetail() {
           </div>
         </div>
       )}
+
+      {showSaveTemplate && agent && (
+        <SaveTemplateModal
+          agentName={agent.name}
+          agentRole={agent.role}
+          agentGoal={agent.goal}
+          onClose={() => setShowSaveTemplate(false)}
+          onSaved={() => setShowSaveTemplate(false)}
+        />
+      )}
     </div>
+  );
+}
+
+function SaveTemplateModal({
+  agentName,
+  agentRole,
+  agentGoal,
+  onClose,
+  onSaved,
+}: {
+  agentName: string;
+  agentRole: string;
+  agentGoal: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [name, setName] = useState(`${agentName}-template`);
+  const [description, setDescription] = useState(`Template for ${agentRole}`);
+  const [category, setCategory] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) { toast.error("Name is required"); return; }
+    setLoading(true);
+    try {
+      const config_json = {
+        name: agentName,
+        role: agentRole,
+        goal: agentGoal,
+        model: { name: "llama3.2:3b", provider: "ollama", temperature: 0.7, max_tokens: 2048, top_p: 0.9 },
+        tools: [],
+        memory: { type: "none", collection: "default", embedding_model: "nomic-embed-text", top_k: 5, score_threshold: 0.5 },
+        max_iterations: 10,
+        system_prompt_extra: "",
+        environment: {},
+      };
+      const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
+      await api.templates.create({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        category: category.trim() || undefined,
+        tags: tags.length > 0 ? tags : undefined,
+        config_json,
+      });
+      toast.success("Template saved");
+      onSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save template");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal open onClose={onClose} title="Save as Template" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Name *</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm
+              text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm
+              text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors resize-none"
+          />
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-300 mb-1">Category</label>
+            <input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="e.g. coding, writing"
+              className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm
+                text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-300 mb-1">Tags</label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="code, review"
+              className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm
+                text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 pt-2">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 glass rounded-lg glass-hover transition-all"
+          >
+            Cancel
+          </button>
+          <button type="submit" disabled={loading}
+            className="px-4 py-2 text-sm font-medium bg-cyan-500/10 text-cyan-400 rounded-lg
+              hover:bg-cyan-500/20 transition-all border border-cyan-500/20 disabled:opacity-50"
+          >
+            {loading ? "Saving..." : "Save Template"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

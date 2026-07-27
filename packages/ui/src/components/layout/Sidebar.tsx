@@ -10,6 +10,7 @@ import {
   LogOut,
   User,
   Key,
+  FileJson,
 } from "lucide-react";
 import { useAppStore } from "../../store/app";
 import { useAuthStore } from "../../store/auth";
@@ -18,6 +19,7 @@ import type { NavItem } from "../../types/api";
 const navItems: NavItem[] = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
   { label: "Agents", path: "/agents", icon: Bot, requiredPermission: "agent:list" },
+  { label: "Templates", path: "/templates", icon: FileJson, requiredPermission: "agent:list" },
   { label: "Orchestration", path: "/orchestrate", icon: GitBranch, requiredPermission: "orchestrate:read" },
   { label: "Logs", path: "/logs", icon: Logs, requiredPermission: "log:read" },
   { label: "Settings", path: "/settings", icon: Settings, requiredPermission: "settings:read" },

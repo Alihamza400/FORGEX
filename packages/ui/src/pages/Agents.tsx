@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bot,
+  FileJson,
   Plus,
   RefreshCw,
   Search,
@@ -74,6 +75,14 @@ export function Agents() {
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
+          </button>
+          <button
+            onClick={() => navigate("/templates")}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-violet-400 hover:text-violet-300
+              bg-violet-500/10 rounded-lg hover:bg-violet-500/20 transition-all border border-violet-500/20"
+          >
+            <FileJson className="w-4 h-4" />
+            From Template
           </button>
           <button
             onClick={() => setShowRegisterModal(true)}

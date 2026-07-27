@@ -3,6 +3,7 @@ import type {
   AgentConfig,
   AgentDescriptor,
   AgentRow,
+  AgentTemplate,
   ApiKeyResponse,
   BrowseResponse,
   CurrentUserResponse,
@@ -198,6 +199,46 @@ export const api = {
       request<{ status: string; key: string }>(`/files/${encodeURIComponent(key)}`, { method: "DELETE" }),
   },
 
+  templates: {
+    list: () => request<AgentTemplate[]>("/templates"),
+
+    create: (data: {
+      name: string;
+      description?: string;
+      config_json: Record<string, unknown>;
+      category?: string;
+      tags?: string[];
+    }) =>
+      request<AgentTemplate>("/templates", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    get: (id: number) => request<AgentTemplate>(`/templates/${id}`),
+
+    update: (id: number, data: {
+      name?: string;
+      description?: string;
+      config_json?: Record<string, unknown>;
+      category?: string;
+      tags?: string[];
+    }) =>
+      request<AgentTemplate>(`/templates/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: number) =>
+      request<{ status: string; name: string }>(`/templates/${id}`, {
+        method: "DELETE",
+      }),
+
+    use: (id: number) =>
+      request<{ status: string; name: string; config: Record<string, unknown> }>(`/templates/${id}/use`, {
+        method: "POST",
+      }),
+  },
+
   webhooks: {
     list: () => request<Webhook[]>("/webhooks"),
 
@@ -285,6 +326,9 @@ export const api = {
 
   agents: {
     list: () => request<AgentRow[]>("/agents"),
+
+    create: (data: { name: string; role: string; goal: string; config_yaml?: string; model_name?: string }) =>
+      request<AgentRow>("/agents", { method: "POST", body: JSON.stringify(data) }),
 
     runs: (name: string, limit?: number, offset?: number) =>
       request<RunHistory[]>(`/agents/${encodeURIComponent(name)}/runs?limit=${limit ?? 20}&offset=${offset ?? 0}`),
