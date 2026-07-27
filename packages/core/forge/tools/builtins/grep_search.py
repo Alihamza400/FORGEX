@@ -3,29 +3,15 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from forge.core.config import settings
+from forge.tools.builtins.filesystem import _get_base, _resolve_path
 from forge.core.logging import get_logger
-from forge.tools.builtins.filesystem import _get_base
 
 logger = get_logger("forge.tools.builtins.grep_search")
-
-_ALLOWED_BASE = settings.data_dir.resolve()
-
-
-def _resolve_path(path_str: str) -> Path:
-    base = _get_base()
-    path = Path(path_str)
-    if not path.is_absolute():
-        path = base / path
-    path = path.resolve()
-    if not str(path).startswith(str(base)):
-        raise PermissionError(f"Access denied: '{path}' is outside allowed directory '{base}'")
-    return path
 
 
 def grep_search(pattern: str, path: str = "", include: str = "*", max_results: int = 50) -> str:
     try:
-        resolved = _resolve_path(path) if path else _ALLOWED_BASE
+        resolved = _resolve_path(path) if path else _get_base()
     except PermissionError as e:
         return f"Error: {e}"
 
@@ -63,9 +49,10 @@ def grep_search(pattern: str, path: str = "", include: str = "*", max_results: i
         if not matches:
             return f"No matches found for '{pattern}' in {resolved}"
 
+        base = _get_base()
         lines = [f"Found {len(matches)} match(es) for '{pattern}':"]
         for filepath, lineno, line in matches:
-            rel = filepath.relative_to(_ALLOWED_BASE)
+            rel = filepath.relative_to(base)
             lines.append(f"  {rel}:{lineno}: {line[:200]}")
 
         return "\n".join(lines)

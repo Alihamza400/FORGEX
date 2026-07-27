@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from forge.core.config import settings
@@ -74,7 +73,7 @@ def write_file(path: str, content: str) -> str:
 
 def list_directory(path: str = "") -> str:
     try:
-        resolved = _resolve_path(path) if path else _ALLOWED_BASE
+        resolved = _resolve_path(path) if path else _get_base()
     except PermissionError as e:
         return f"Error: {e}"
     if not resolved.exists():
@@ -95,7 +94,7 @@ def list_directory(path: str = "") -> str:
 
 def search_files(pattern: str, path: str = "") -> str:
     try:
-        resolved = _resolve_path(path) if path else _ALLOWED_BASE
+        resolved = _resolve_path(path) if path else _get_base()
     except PermissionError as e:
         return f"Error: {e}"
     if not resolved.exists() or not resolved.is_dir():
@@ -106,9 +105,10 @@ def search_files(pattern: str, path: str = "") -> str:
         if not matches:
             return f"No files matching '{pattern}' in {resolved}"
 
+        base = _get_base()
         lines = [f"Found {len(matches)} file(s) matching '{pattern}':"]
         for match in sorted(matches)[:50]:
-            rel = match.relative_to(_ALLOWED_BASE)
+            rel = match.relative_to(base)
             lines.append(f"  {rel}")
         if len(matches) > 50:
             lines.append(f"  ... and {len(matches) - 50} more")

@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
-from forge.core.config import settings
 from forge.core.logging import get_logger
-from forge.tools.builtins.filesystem import _get_base, set_workspace
+from forge.tools.builtins.filesystem import _get_base
 
 logger = get_logger("forge.tools.builtins.run_command")
-
-_ALLOWED_BASE = settings.data_dir.resolve()
 
 
 async def run_command(command: str, timeout: int = 30) -> str:
