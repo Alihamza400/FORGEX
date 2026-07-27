@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 from forge.core.agent_config import AgentConfig, TaskResult
 from forge.core.logging import get_logger
 from forge.llm.client import OllamaClient
 from forge.memory.memory_manager import MemoryManager
 from forge.runtime.loop import AgentLoop
+from forge.runtime.streaming import run_streaming as _run_streaming
 from forge.tools.builtins.filesystem import set_workspace
 
 logger = get_logger("forge.runtime.agent")
@@ -67,6 +70,30 @@ class AgentRuntime:
             duration_ms=result.duration_ms,
         )
         return result
+
+    async def run_streaming(self, task: str) -> AsyncIterator[str]:
+        if self.config.workspace_dir:
+            set_workspace(self.config.workspace_dir)
+            logger.info("set agent workspace (streaming)", workspace=self.config.workspace_dir)
+
+        logger.info(
+            "running agent (streaming)",
+            agent=self.config.name,
+            task_len=len(task),
+        )
+
+        memory_context = ""
+        if self.config.memory.type != "none":
+            await self.memory.initialize()
+            memory_context = await self.memory.retrieve_context(task)
+
+        async for event in _run_streaming(
+            config=self.config,
+            task=task,
+            llm_client=self.loop.llm,
+            memory_context=memory_context,
+        ):
+            yield event
 
     async def close(self) -> None:
         await self.memory.close()

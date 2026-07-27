@@ -159,6 +159,68 @@ export const api = {
   agents: {
     list: () => request<AgentListResponse>("/agents"),
 
+    runStream: (
+      payload: { config_path?: string; config?: AgentConfig; task: string },
+      onEvent: (event: { type: string; data: Record<string, unknown> }) => void,
+      onDone: () => void,
+      onError: (err: Error) => void,
+    ): AbortController => {
+      const controller = new AbortController();
+      const { accessToken } = useAuthStore.getState();
+
+      fetch(`${API_BASE}/agents/run/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      }).then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          onError(new Error((body as { detail?: string }).detail ?? res.statusText));
+          return;
+        }
+        const reader = res.body?.getReader();
+        if (!reader) {
+          onError(new Error("No response body"));
+          return;
+        }
+        const decoder = new TextDecoder();
+        let buffer = "";
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith("data: ")) continue;
+              try {
+                const parsed = JSON.parse(trimmed.slice(6));
+                onEvent(parsed);
+              } catch {
+                // skip malformed events
+              }
+            }
+          }
+        } catch (err) {
+          if (err instanceof Error && err.name !== "AbortError") {
+            onError(err);
+          }
+          return;
+        }
+        onDone();
+      }).catch((err) => {
+        if (err.name !== "AbortError") onError(err);
+      });
+
+      return controller;
+    },
+
     validate: (config: { config_path?: string; config?: AgentConfig }) =>
       request<{ valid: boolean; name: string; errors: string[] }>(
         "/agents/validate",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -8,6 +8,8 @@ import {
   Hash,
   Timer,
   Thermometer,
+  Braces,
+  Terminal,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { api } from "../api/client";
@@ -31,6 +33,105 @@ export function AgentDetail() {
   const [task, setTask] = useState("");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<TaskResult | null>(null);
+  const [streamOutput, setStreamOutput] = useState("");
+  const [toolCalls, setToolCalls] = useState<{ tool: string; args: string; result?: string }[]>([]);
+  const [currentIteration, setCurrentIteration] = useState(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const outputRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (outputRef.current) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [streamOutput, toolCalls]);
+
+  const handleRun = useCallback(async () => {
+    if (!task.trim()) return;
+    setRunning(true);
+    setResult(null);
+    setStreamOutput("");
+    setToolCalls([]);
+    setCurrentIteration(0);
+
+    const config: AgentConfig = {
+      name: agent!.name,
+      role: agent!.role,
+      goal: agent!.goal,
+      model: { name: "llama3.2:3b", provider: "ollama", temperature: 0.7, max_tokens: 2048, top_p: 0.9 },
+      tools: [],
+      memory: { type: "none", collection: "default", embedding_model: "nomic-embed-text", top_k: 5, score_threshold: 0.5 },
+      max_iterations: 10,
+      system_prompt_extra: "",
+      environment: {},
+    };
+
+    let fullOutput = "";
+
+    abortRef.current = api.agents.runStream(
+      { config, task: task.trim() },
+      (event: { type: string; data: Record<string, unknown> }) => {
+        switch (event.type) {
+          case "iteration":
+            setCurrentIteration((event.data as { iteration: number }).iteration);
+            break;
+          case "token":
+            fullOutput += (event.data as { token: string }).token;
+            setStreamOutput(fullOutput);
+            break;
+          case "tool_call":
+            setToolCalls((prev) => [
+              ...prev,
+              { tool: (event.data as { tool: string }).tool, args: JSON.stringify((event.data as { args: Record<string, unknown> }).args, null, 2) },
+            ]);
+            break;
+          case "tool_result":
+            setToolCalls((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last) last.result = (event.data as { result: string }).result.slice(0, 500);
+              return updated;
+            });
+            break;
+          case "error":
+            toast.error((event.data as { error: string }).error);
+            break;
+        }
+      },
+      () => {
+        setRunning(false);
+        setResult({
+          agent_name: agent!.name,
+          task: task.trim(),
+          output: fullOutput,
+          iterations: currentIteration || 1,
+          tokens_used: 0,
+          error: null,
+          duration_ms: 0,
+        });
+      },
+      (err: Error) => {
+        setRunning(false);
+        toast.error(err.message);
+        setResult({
+          agent_name: agent!.name,
+          task: task.trim(),
+          output: fullOutput,
+          iterations: currentIteration || 1,
+          tokens_used: 0,
+          error: err.message,
+          duration_ms: 0,
+        });
+      },
+    );
+  }, [task, agent, toast, currentIteration]);
+
+  const handleStop = useCallback(() => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+      setRunning(false);
+    }
+  }, []);
 
   if (!agentsData) return <PageSkeleton />;
   if (!agent) {
@@ -44,41 +145,6 @@ export function AgentDetail() {
       </div>
     );
   }
-
-  const handleRun = async () => {
-    if (!task.trim()) return;
-    setRunning(true);
-    setResult(null);
-    try {
-      const config: AgentConfig = {
-        name: agent.name,
-        role: agent.role,
-        goal: agent.goal,
-        model: { name: "llama3.2:3b", provider: "ollama", temperature: 0.7, max_tokens: 2048, top_p: 0.9 },
-        tools: [],
-        memory: { type: "none", collection: "default", embedding_model: "nomic-embed-text", top_k: 5, score_threshold: 0.5 },
-        max_iterations: 10,
-        system_prompt_extra: "",
-        environment: {},
-      };
-      const res = await api.agents.run({ config, task: task.trim() });
-      setResult(res);
-      toast.success("Task completed successfully");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Task failed");
-      setResult({
-        agent_name: agent.name,
-        task: task.trim(),
-        output: "",
-        iterations: 0,
-        tokens_used: 0,
-        error: err instanceof Error ? err.message : "Unknown error",
-        duration_ms: 0,
-      });
-    } finally {
-      setRunning(false);
-    }
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -138,19 +204,29 @@ export function AgentDetail() {
             value={task}
             onChange={(e) => setTask(e.target.value)}
             placeholder="Enter a task for this agent..."
-            onKeyDown={(e) => e.key === "Enter" && handleRun()}
+            onKeyDown={(e) => e.key === "Enter" && !running && handleRun()}
             className="flex-1 px-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-lg text-sm
               text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors"
           />
-          <button
-            onClick={handleRun}
-            disabled={running || !task.trim()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-cyan-500/10 text-cyan-400 rounded-lg
-              hover:bg-cyan-500/20 transition-all text-sm font-medium border border-cyan-500/20 disabled:opacity-50"
-          >
-            <Send className="w-4 h-4" />
-            {running ? "Running..." : "Run"}
-          </button>
+          {running ? (
+            <button
+              onClick={handleStop}
+              className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 text-red-400 rounded-lg
+                hover:bg-red-500/20 transition-all text-sm font-medium border border-red-500/20"
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              onClick={handleRun}
+              disabled={!task.trim()}
+              className="flex items-center gap-2 px-5 py-2.5 bg-cyan-500/10 text-cyan-400 rounded-lg
+                hover:bg-cyan-500/20 transition-all text-sm font-medium border border-cyan-500/20 disabled:opacity-50"
+            >
+              <Send className="w-4 h-4" />
+              Run
+            </button>
+          )}
         </div>
       </div>
 
@@ -158,7 +234,9 @@ export function AgentDetail() {
         <div className="glass rounded-xl p-5 space-y-3">
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-sm text-slate-400">Agent is working...</span>
+            <span className="text-sm text-slate-400">
+              {currentIteration > 0 ? `Iteration ${currentIteration}...` : "Agent is thinking..."}
+            </span>
           </div>
           <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 rounded-full animate-progress" />
@@ -166,7 +244,44 @@ export function AgentDetail() {
         </div>
       )}
 
-      {result && (
+      {running && streamOutput && (
+        <div className="glass rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Terminal className="w-4 h-4 text-cyan-400" />
+            <h3 className="text-sm font-medium text-slate-300">Live Output</h3>
+          </div>
+          <div
+            ref={outputRef}
+            className="max-h-96 overflow-y-auto font-mono text-sm text-slate-300 whitespace-pre-wrap"
+          >
+            {streamOutput}
+            <span className="inline-block w-2 h-4 bg-cyan-400 animate-pulse ml-0.5" />
+          </div>
+        </div>
+      )}
+
+      {toolCalls.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2">
+            <Braces className="w-4 h-4" />
+            Tool Calls ({toolCalls.length})
+          </h3>
+          {toolCalls.map((tc, i) => (
+            <div key={i} className="glass rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Terminal className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-mono text-amber-400">{tc.tool}</span>
+              </div>
+              <CodeBlock code={tc.args} language="json" title="Arguments" />
+              {tc.result && (
+                <CodeBlock code={tc.result} language="text" title="Result" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {result && !running && (
         <div className="space-y-4 animate-slide-up">
           <div className="glass rounded-xl p-5">
             <div className="flex items-center justify-between mb-2">

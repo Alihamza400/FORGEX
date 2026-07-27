@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from forge.auth.dependencies import get_current_user, require_permission
 from forge.core.agent_config import AgentConfig, TaskResult
 from forge.core.config_loader import ConfigLoadError, load_agent_config
@@ -213,3 +216,38 @@ async def run_agent(
         return result
     finally:
         await runtime.close()
+
+
+@router.post("/agents/run/stream")
+async def run_agent_stream(
+    req: RunRequest,
+    _: Any = Depends(get_current_user),
+) -> StreamingResponse:
+    try:
+        if req.config:
+            config = req.config
+        elif req.config_path:
+            config = load_agent_config(req.config_path)
+        else:
+            raise HTTPException(status_code=400, detail="Either config or config_path is required")
+    except ConfigLoadError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    runtime = AgentRuntime(config=config)
+    await runtime.initialize()
+
+    async def event_stream() -> AsyncIterator[str]:
+        try:
+            async for event in runtime.run_streaming(req.task):
+                yield event
+        finally:
+            await runtime.close()
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
