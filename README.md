@@ -92,19 +92,24 @@ FORGEX is a production-ready platform for building, orchestrating, and deploying
 - Docker & Docker Compose (for infrastructure services)
 - [Ollama](https://ollama.ai/) (for local LLM inference)
 
-### 1. Install the CLI
+### 1. Install
 
 ```bash
+# CLI — run agents on your projects
 pip install forge-cli
+
+# API server (optional, for web dashboard)
+pip install forge-api
 ```
 
 Or with `uv`:
 
 ```bash
 uv tool install forge-cli
+uv tool install forge-api
 ```
 
-Verify it works:
+Verify:
 
 ```bash
 forge version
@@ -152,9 +157,18 @@ forge orchestrate "Build a web application" \
 ### Install
 
 ```bash
+# CLI tool
 pip install forge-cli
-# or
+
+# API server (optional)
+pip install forge-api
+```
+
+Or with `uv`:
+
+```bash
 uv tool install forge-cli
+uv tool install forge-api
 ```
 
 The `forge` CLI provides full control over agents, orchestrations, deployments, and infrastructure.

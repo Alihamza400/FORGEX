@@ -6,6 +6,7 @@ on:
       - "v*.*.*"
       - "forge-core-v*.*.*"
       - "forge-cli-v*.*.*"
+      - "forge-api-v*.*.*"
 
 jobs:
   publish:
@@ -33,6 +34,10 @@ jobs:
             echo "name=forge-cli" >> $GITHUB_OUTPUT
             echo "dir=packages/cli" >> $GITHUB_OUTPUT
             echo "version=${TAG#forge-cli-}" >> $GITHUB_OUTPUT
+          elif [[ "$TAG" == forge-api-* ]]; then
+            echo "name=forge-api" >> $GITHUB_OUTPUT
+            echo "dir=packages/api" >> $GITHUB_OUTPUT
+            echo "version=${TAG#forge-api-}" >> $GITHUB_OUTPUT
           else
             echo "name=all" >> $GITHUB_OUTPUT
             echo "dir=." >> $GITHUB_OUTPUT
@@ -45,6 +50,7 @@ jobs:
           if [ "${{ steps.package.outputs.name }}" = "all" ]; then
             sed -i "s/^version = .*/version = \"$VERSION\"/" packages/core/pyproject.toml
             sed -i "s/^version = .*/version = \"$VERSION\"/" packages/cli/pyproject.toml
+            sed -i "s/^version = .*/version = \"$VERSION\"/" packages/api/pyproject.toml
           else
             sed -i "s/^version = .*/version = \"$VERSION\"/" ${{ steps.package.outputs.dir }}/pyproject.toml
           fi
@@ -54,6 +60,7 @@ jobs:
           if [ "${{ steps.package.outputs.name }}" = "all" ]; then
             uv build --package forge-core
             uv build --package forge-cli
+            uv build --package forge-api
           else
             uv build --package ${{ steps.package.outputs.name }}
           fi
@@ -62,4 +69,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: |
-            ${{ steps.package.outputs.dir == '.' && 'packages/core/dist packages/cli/dist' || format('{0}/dist', steps.package.outputs.dir) }}
+            ${{ steps.package.outputs.dir == '.' && 'packages/core/dist packages/cli/dist packages/api/dist' || format('{0}/dist', steps.package.outputs.dir) }}
