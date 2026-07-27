@@ -122,6 +122,17 @@ export interface AgentListResponse {
   agents: AgentDescriptor[];
 }
 
+export interface AgentRow {
+  id: number;
+  name: string;
+  role: string;
+  goal: string;
+  model_name: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SubTaskDef {
   id: string;
   description: string;

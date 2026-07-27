@@ -36,7 +36,16 @@ export function Orchestrate() {
   const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
 
   useEffect(() => {
-    if (agentsData) setAgents(agentsData.agents);
+    if (agentsData) setAgents(agentsData.map((a) => ({
+      name: a.name,
+      role: a.role,
+      goal: a.goal,
+      capabilities: [] as import("../types/api").AgentCapability[],
+      status: a.status as import("../types/api").AgentStatus,
+      last_heartbeat: null,
+      endpoint: null,
+      metadata: {},
+    })));
   }, [agentsData, setAgents]);
 
   const shouldPoll = currentId !== null && running;

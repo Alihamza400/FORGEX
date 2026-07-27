@@ -37,7 +37,16 @@ export function Agents() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (data) setAgents(data.agents);
+    if (data) setAgents(data.map((a) => ({
+      name: a.name,
+      role: a.role,
+      goal: a.goal,
+      capabilities: [] as import("../types/api").AgentCapability[],
+      status: a.status as import("../types/api").AgentStatus,
+      last_heartbeat: null,
+      endpoint: null,
+      metadata: {},
+    })));
   }, [data, setAgents]);
 
   const filtered = agents.filter(

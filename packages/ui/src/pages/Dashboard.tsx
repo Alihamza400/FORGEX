@@ -23,7 +23,16 @@ export function Dashboard() {
   const { data: agentsData, loading } = useApi(() => api.agents.list());
 
   useEffect(() => {
-    if (agentsData) setAgents(agentsData.agents);
+    if (agentsData) setAgents(agentsData.map((a) => ({
+      name: a.name,
+      role: a.role,
+      goal: a.goal,
+      capabilities: [] as import("../types/api").AgentCapability[],
+      status: a.status as import("../types/api").AgentStatus,
+      last_heartbeat: null,
+      endpoint: null,
+      metadata: {},
+    })));
   }, [agentsData, setAgents]);
 
   if (loading || !health) return <PageSkeleton />;

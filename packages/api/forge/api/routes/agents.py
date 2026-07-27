@@ -12,7 +12,6 @@ from fastapi.responses import StreamingResponse
 from forge.auth.dependencies import get_current_user, require_permission
 from forge.core.agent_config import AgentConfig, TaskResult
 from forge.core.config_loader import ConfigLoadError, load_agent_config
-from forge.orchestrator.registry import get_registry
 from forge.runtime.agent import AgentRuntime
 from forge.storage.postgres import Database
 from forge.storage.repository import AgentRepository, TaskRepository
@@ -112,9 +111,33 @@ async def get_db() -> Database:
 
 
 @router.get("/agents", response_model=list[AgentResponse])
-async def list_agents(_: Any = Depends(require_permission("agent:list"))) -> list[AgentResponse]:
-    registry = get_registry()
-    return [{"id": 0, "name": a.name, "role": a.name, "goal": "", "model_name": "", "status": "", "created_at": "", "updated_at": ""} for a in registry.list_agents()]
+async def list_agents(
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    _: Any = Depends(require_permission("agent:list")),
+) -> list[AgentResponse]:
+    db = Database()
+    try:
+        await db.connect()
+        async with db.session() as session:
+            repo = AgentRepository(session)
+            agents = await repo.list_all()
+            agents = agents[offset:offset + limit]
+            return [
+                AgentResponse(
+                    id=a.id,
+                    name=a.name,
+                    role=a.role,
+                    goal=a.goal,
+                    model_name=a.model_name or "",
+                    status=a.status,
+                    created_at=str(a.created_at),
+                    updated_at=str(a.updated_at),
+                )
+                for a in agents
+            ]
+    finally:
+        await db.close()
 
 
 @router.post("/agents", response_model=dict[str, Any], status_code=201)

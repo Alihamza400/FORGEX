@@ -2,7 +2,7 @@ import { useAuthStore } from "../store/auth";
 import type {
   AgentConfig,
   AgentDescriptor,
-  AgentListResponse,
+  AgentRow,
   ApiKeyResponse,
   BrowseResponse,
   CurrentUserResponse,
@@ -169,7 +169,7 @@ export const api = {
   },
 
   agents: {
-    list: () => request<AgentListResponse>("/agents"),
+    list: () => request<AgentRow[]>("/agents"),
 
     runs: (name: string, limit?: number, offset?: number) =>
       request<RunHistory[]>(`/agents/${encodeURIComponent(name)}/runs?limit=${limit ?? 20}&offset=${offset ?? 0}`),
@@ -277,6 +277,16 @@ export const api = {
 export async function fetchAgentsWithStatus(): Promise<
   (AgentDescriptor & { running: boolean })[]
 > {
-  const { agents } = await api.agents.list();
-  return agents.map((a) => ({ ...a, running: a.status === "busy" }));
+  const rows = await api.agents.list();
+  return rows.map((a) => ({
+    name: a.name,
+    role: a.role,
+    goal: a.goal,
+    capabilities: [] as import("../types/api").AgentCapability[],
+    status: a.status as import("../types/api").AgentStatus,
+    last_heartbeat: null,
+    endpoint: null,
+    metadata: {},
+    running: a.status === "busy",
+  }));
 }

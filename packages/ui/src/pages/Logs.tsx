@@ -15,7 +15,7 @@ import { usePolling } from "../hooks/useApi";
 import { api } from "../api/client";
 import { EmptyState } from "../components/shared/EmptyState";
 import { formatAbsolute } from "../utils/format";
-import type { AgentDescriptor } from "../types/api";
+import type { AgentRow } from "../types/api";
 
 type LogLevel = "info" | "warn" | "error" | "debug";
 type LogEntry = {
@@ -90,7 +90,7 @@ export function Logs() {
     });
   }, [search, levelFilter, agentFilter]);
 
-  const agents = agentsData?.agents ?? [];
+  const agents = agentsData ?? [];
 
   return (
     <div className="space-y-6">
@@ -161,7 +161,7 @@ export function Logs() {
             text-slate-200 focus:outline-none focus:border-cyan-500/50 transition-colors"
         >
           <option value="all">All Agents</option>
-          {agents.map((a: AgentDescriptor) => (
+          {agents.map((a: AgentRow) => (
             <option key={a.name} value={a.name}>
               {a.name}
             </option>
