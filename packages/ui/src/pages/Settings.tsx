@@ -23,6 +23,7 @@ import {
   PlugZap,
   Wifi,
   WifiOff,
+  Webhook,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { useAuthStore } from "../store/auth";
@@ -33,7 +34,7 @@ import { Modal } from "../components/shared/Modal";
 import { useToast } from "../hooks/useToast";
 import { formatAbsolute } from "../utils/format";
 import type { LucideIcon } from "lucide-react";
-import type { BrowseEntry } from "../types/api";
+import type { BrowseEntry, Webhook as WebhookType } from "../types/api";
 
 const defaultConfig = {
   api_host: "0.0.0.0",
@@ -139,6 +140,12 @@ export function Settings() {
             onClick={() => setActiveSection("storage")}
           />
           <SectionButton
+            icon={Webhook}
+            label="Webhooks"
+            active={activeSection === "webhooks"}
+            onClick={() => setActiveSection("webhooks")}
+          />
+          <SectionButton
             icon={Plug}
             label="MCP Servers"
             active={activeSection === "mcp"}
@@ -182,6 +189,8 @@ export function Settings() {
             />
           )}
 
+          {activeSection === "webhooks" && <WebhooksSection />}
+
           {activeSection === "mcp" && <McpServersSection />}
 
           {activeSection === "files" && <FilesSection />}
@@ -190,7 +199,7 @@ export function Settings() {
 
           {activeSection === "workspace" && <WorkspaceSection />}
 
-          {activeSection !== "profile" && activeSection !== "api-keys" && activeSection !== "workspace" && activeSection !== "models" && activeSection !== "files" && activeSection !== "mcp" && (
+          {activeSection !== "profile" && activeSection !== "api-keys" && activeSection !== "workspace" && activeSection !== "models" && activeSection !== "files" && activeSection !== "mcp" && activeSection !== "webhooks" && (
             <>
               <div className="flex justify-end mb-4">
                 <div className="flex items-center gap-2">
@@ -458,6 +467,239 @@ function ApiKeyRow({
           >
             <Trash2 className="w-4 h-4" />
           </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WebhooksSection() {
+  const toast = useToast();
+  const { data, loading, refetch } = useApi(() => api.webhooks.list());
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newHook, setNewHook] = useState({ name: "", url: "", events: ["agent.run.completed"], secret: "", active: 1 });
+  const [testing, setTesting] = useState<number | null>(null);
+
+  const handleAdd = async () => {
+    if (!newHook.name.trim()) { toast.error("Name is required"); return; }
+    if (!newHook.url.trim()) { toast.error("URL is required"); return; }
+    try {
+      await api.webhooks.create({
+        name: newHook.name.trim(),
+        url: newHook.url.trim(),
+        events: newHook.events,
+        secret: newHook.secret.trim() || undefined,
+        active: newHook.active,
+      });
+      toast.success("Webhook added");
+      setShowAddForm(false);
+      setNewHook({ name: "", url: "", events: ["agent.run.completed"], secret: "", active: 1 });
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add");
+    }
+  };
+
+  const handleToggle = async (hook: WebhookType) => {
+    try {
+      await api.webhooks.update(hook.id, { active: hook.active ? 0 : 1 });
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update");
+    }
+  };
+
+  const handleTest = async (id: number) => {
+    setTesting(id);
+    try {
+      const res = await api.webhooks.test(id);
+      if (res.success) {
+        toast.success(`Webhook responded with HTTP ${res.status_code}`);
+      } else {
+        toast.error(res.error ?? `HTTP ${res.status_code ?? "— connection failed"}`);
+      }
+    } catch (err) {
+      toast.error("Test failed");
+    } finally {
+      setTesting(null);
+    }
+  };
+
+  const handleDelete = async (id: number, name: string) => {
+    try {
+      await api.webhooks.delete(id);
+      toast.success(`Removed '${name}'`);
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-100">Webhooks</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Send HTTP requests to external services when agents complete runs.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-cyan-500/10 text-cyan-400 rounded-lg
+              hover:bg-cyan-500/20 transition-all font-medium border border-cyan-500/20"
+          >
+            <Plus className="w-4 h-4" />
+            Add Webhook
+          </button>
+        </div>
+
+        {showAddForm && (
+          <div className="mb-6 p-4 bg-slate-800/30 rounded-lg border border-slate-700 space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
+              <input
+                type="text"
+                value={newHook.name}
+                onChange={(e) => setNewHook({ ...newHook, name: e.target.value })}
+                placeholder="e.g. slack-notifier"
+                className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">URL</label>
+              <input
+                type="text"
+                value={newHook.url}
+                onChange={(e) => setNewHook({ ...newHook, url: e.target.value })}
+                placeholder="https://hooks.slack.com/services/..."
+                className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Events</label>
+              <div className="flex gap-4">
+                {["agent.run.completed", "agent.run.failed"].map((ev) => (
+                  <label key={ev} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newHook.events.includes(ev)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setNewHook({ ...newHook, events: [...newHook.events, ev] });
+                        } else {
+                          setNewHook({ ...newHook, events: newHook.events.filter((x) => x !== ev) });
+                        }
+                      }}
+                      className="rounded border-slate-600 text-cyan-500 focus:ring-cyan-500/30 bg-slate-700"
+                    />
+                    {ev === "agent.run.completed" ? "Run Completed" : "Run Failed"}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Secret <span className="text-slate-500 font-normal">(optional — sent as X-Webhook-Secret header)</span>
+              </label>
+              <input
+                type="password"
+                value={newHook.secret}
+                onChange={(e) => setNewHook({ ...newHook, secret: e.target.value })}
+                placeholder="your-webhook-secret"
+                className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="px-4 py-2 text-sm text-slate-400 glass rounded-lg glass-hover"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdd}
+                className="px-4 py-2 text-sm font-medium bg-cyan-500/10 text-cyan-400 rounded-lg hover:bg-cyan-500/20 transition-all border border-cyan-500/20"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2].map((i) => <div key={i} className="h-16 bg-slate-800/30 rounded-lg animate-pulse" />)}
+          </div>
+        ) : !data || data.length === 0 ? (
+          <div className="text-center py-8 text-sm text-slate-500">
+            No webhooks configured. Add one above.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {data.map((hook) => (
+              <div
+                key={hook.id}
+                className="flex items-center justify-between px-4 py-3 bg-slate-800/30 rounded-lg border border-slate-700/50"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`p-1.5 rounded-lg ${
+                    hook.active ? "bg-cyan-500/10 text-cyan-400" : "bg-slate-700/30 text-slate-500"
+                  }`}>
+                    <Webhook className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-slate-200">{hook.name}</p>
+                      {hook.last_response_code !== null && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          hook.last_response_code < 300 ? "text-emerald-400 bg-emerald-500/10" : "text-red-400 bg-red-500/10"
+                        }`}>
+                          {hook.last_response_code}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 font-mono truncate">{hook.url}</p>
+                    <div className="flex gap-2 mt-1">
+                      {hook.events.map((ev) => (
+                        <span key={ev} className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700/50 text-slate-400">
+                          {ev === "agent.run.completed" ? "completed" : ev === "agent.run.failed" ? "failed" : ev}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleToggle(hook)}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${
+                      hook.active ? "bg-cyan-500/40" : "bg-slate-700"
+                    }`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                      hook.active ? "translate-x-4" : ""
+                    }`} />
+                  </button>
+                  <button
+                    onClick={() => handleTest(hook.id)}
+                    disabled={testing === hook.id}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all"
+                    title="Test webhook"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${testing === hook.id ? "animate-spin" : ""}`} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(hook.id, hook.name)}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from forge.core.logging import get_logger
-from forge.storage.models import AgentModel, LogModel, McpServerModel, RunModel, TaskModel
+from forge.storage.models import AgentModel, LogModel, McpServerModel, RunModel, TaskModel, WebhookModel
 from sqlalchemy import delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -267,6 +267,71 @@ class McpServerRepository:
     async def delete(self, server_id: int) -> bool:
         result = await self.session.execute(
             delete(McpServerModel).where(McpServerModel.id == server_id),
+        )
+        await self.session.commit()
+        return result.rowcount > 0
+
+
+class WebhookRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def create(
+        self,
+        name: str,
+        url: str,
+        events: list[str] | None = None,
+        secret: str | None = None,
+        active: int = 1,
+    ) -> WebhookModel:
+        hook = WebhookModel(
+            name=name,
+            url=url,
+            events=events or ["agent.run.completed"],
+            secret=secret,
+            active=active,
+        )
+        self.session.add(hook)
+        await self.session.commit()
+        await self.session.refresh(hook)
+        logger.info("created webhook", id=hook.id, name=hook.name)
+        return hook
+
+    async def get_by_id(self, hook_id: int) -> WebhookModel | None:
+        result = await self.session.execute(
+            select(WebhookModel).where(WebhookModel.id == hook_id),
+        )
+        return result.scalar_one_or_none()
+
+    async def list_all(self) -> list[WebhookModel]:
+        result = await self.session.execute(
+            select(WebhookModel).order_by(desc(WebhookModel.created_at)),
+        )
+        return list(result.scalars().all())
+
+    async def get_active_by_event(self, event: str) -> list[WebhookModel]:
+        result = await self.session.execute(
+            select(WebhookModel)
+            .where(WebhookModel.active == 1)
+            .order_by(desc(WebhookModel.created_at)),
+        )
+        return [h for h in result.scalars().all() if event in (h.events or [])]
+
+    async def update(
+        self,
+        hook_id: int,
+        **kwargs: Any,
+    ) -> WebhookModel | None:
+        kwargs["updated_at"] = datetime.now(UTC)
+        await self.session.execute(
+            update(WebhookModel).where(WebhookModel.id == hook_id).values(**kwargs),
+        )
+        await self.session.commit()
+        return await self.get_by_id(hook_id)
+
+    async def delete(self, hook_id: int) -> bool:
+        result = await self.session.execute(
+            delete(WebhookModel).where(WebhookModel.id == hook_id),
         )
         await self.session.commit()
         return result.rowcount > 0

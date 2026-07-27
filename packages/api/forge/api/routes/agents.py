@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from datetime import datetime
@@ -7,6 +8,7 @@ from typing import Any
 
 from forge.core.logging import get_logger
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from forge.auth.dependencies import get_current_user, require_permission
@@ -100,6 +102,59 @@ async def _persist_task(agent_name: str, task: str, result: TaskResult) -> None:
             )
     except Exception as e:
         logger.warning("failed to persist task result", error=str(e))
+    finally:
+        await db.close()
+
+    event = f"agent.run.{status}"
+    asyncio.ensure_future(
+        _dispatch_webhooks(agent_name, event, {
+            "task": task,
+            "output": result.output,
+            "status": status,
+            "error": result.error,
+            "iterations": result.iterations,
+            "tokens_used": result.tokens_used,
+            "duration_ms": result.duration_ms,
+        }),
+    )
+
+
+async def _dispatch_webhooks(
+    agent_name: str,
+    event: str,
+    payload: dict[str, Any],
+) -> None:
+    db = Database()
+    try:
+        await db.connect()
+        async with db.session() as session:
+            from forge.storage.repository import WebhookRepository
+            repo = WebhookRepository(session)
+            hooks = await repo.get_active_by_event(event)
+            if not hooks:
+                return
+            for hook in hooks:
+                body = {"event": event, "agent_name": agent_name, "data": payload, "timestamp": datetime.now().isoformat()}
+                try:
+                    headers = {"Content-Type": "application/json"}
+                    if hook.secret:
+                        headers["X-Webhook-Secret"] = hook.secret
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        res = await client.post(hook.url, json=body, headers=headers)
+                    await repo.update(
+                        hook.id,
+                        last_triggered_at=datetime.now(),
+                        last_response_code=res.status_code,
+                    )
+                except Exception as e:
+                    logger.warning("webhook dispatch failed", hook=hook.name, error=str(e))
+                    await repo.update(
+                        hook.id,
+                        last_triggered_at=datetime.now(),
+                        last_response_code=None,
+                    )
+    except Exception as e:
+        logger.warning("webhook dispatch error", error=str(e))
     finally:
         await db.close()
 

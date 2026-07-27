@@ -18,6 +18,8 @@ import type {
   SubTaskResult,
   TaskResult,
   TokenResponse,
+  Webhook,
+  WebhookTestResult,
   WorkspaceResponse,
 } from "../types/api";
 
@@ -194,6 +196,44 @@ export const api = {
 
     delete: (key: string) =>
       request<{ status: string; key: string }>(`/files/${encodeURIComponent(key)}`, { method: "DELETE" }),
+  },
+
+  webhooks: {
+    list: () => request<Webhook[]>("/webhooks"),
+
+    create: (data: {
+      name: string;
+      url: string;
+      events?: string[];
+      secret?: string;
+      active?: number;
+    }) =>
+      request<Webhook>("/webhooks", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    update: (id: number, data: {
+      name?: string;
+      url?: string;
+      events?: string[];
+      secret?: string;
+      active?: number;
+    }) =>
+      request<Webhook>(`/webhooks/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: number) =>
+      request<{ status: string; name: string }>(`/webhooks/${id}`, {
+        method: "DELETE",
+      }),
+
+    test: (id: number) =>
+      request<WebhookTestResult>(`/webhooks/${id}/test`, {
+        method: "POST",
+      }),
   },
 
   mcp: {

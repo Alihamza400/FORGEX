@@ -262,6 +262,25 @@ export interface FileListResponse {
   files: FileInfo[];
 }
 
+export interface Webhook {
+  id: number;
+  name: string;
+  url: string;
+  events: string[];
+  secret: string | null;
+  active: number;
+  last_triggered_at: string | null;
+  last_response_code: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookTestResult {
+  success: boolean;
+  status_code: number | null;
+  error: string | null;
+}
+
 export interface McpServer {
   id: number;
   name: string;

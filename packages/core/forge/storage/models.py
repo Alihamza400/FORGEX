@@ -82,6 +82,24 @@ class McpServerModel(Base):
         return f"<McpServerModel(id={self.id}, name='{self.name}', status='{self.status}')>"
 
 
+class WebhookModel(Base):
+    __tablename__ = "webhooks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(128), unique=True, nullable=False, index=True)
+    url = Column(String(512), nullable=False)
+    events = Column(JSON, nullable=False, default=["agent.run.completed"])
+    secret = Column(String(256), nullable=True)
+    active = Column(Integer, default=1)
+    last_triggered_at = Column(DateTime, nullable=True)
+    last_response_code = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<WebhookModel(id={self.id}, name='{self.name}', active={self.active})>"
+
+
 class RunModel(Base):
     __tablename__ = "runs"
 
