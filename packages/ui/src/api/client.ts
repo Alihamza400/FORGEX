@@ -6,6 +6,7 @@ import type {
   ApiKeyResponse,
   BrowseResponse,
   CurrentUserResponse,
+  FileListResponse,
   HealthCheck,
   ModelListResponse,
   OrchestrateResponse,
@@ -156,6 +157,40 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ workspace }),
       }),
+  },
+
+  files: {
+    list: (prefix?: string) =>
+      request<FileListResponse>(`/files?prefix=${encodeURIComponent(prefix ?? "")}`),
+
+    upload: (file: File, onProgress?: (pct: number) => void): Promise<{ status: string; key: string; path: string }> => {
+      return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
+          else reject(new Error(xhr.responseText ? JSON.parse(xhr.responseText).detail : "Upload failed"));
+        };
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        const { accessToken } = useAuthStore.getState();
+        xhr.open("POST", `${API_BASE}/files/upload`);
+        if (accessToken) xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+        xhr.send(formData);
+      });
+    },
+
+    download: (key: string): string => {
+      const { accessToken } = useAuthStore.getState();
+      const params = accessToken ? `?token=${accessToken}` : "";
+      return `${API_BASE}/files/${encodeURIComponent(key)}${params}`;
+    },
+
+    delete: (key: string) =>
+      request<{ status: string; key: string }>(`/files/${encodeURIComponent(key)}`, { method: "DELETE" }),
   },
 
   models: {

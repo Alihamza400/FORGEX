@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Save,
   RefreshCw,
@@ -16,6 +16,9 @@ import {
   ArrowUp,
   Cpu,
   Download,
+  Upload,
+  Paperclip,
+  ExternalLink,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { useAuthStore } from "../store/auth";
@@ -132,6 +135,12 @@ export function Settings() {
             onClick={() => setActiveSection("storage")}
           />
           <SectionButton
+            icon={Paperclip}
+            label="Files"
+            active={activeSection === "files"}
+            onClick={() => setActiveSection("files")}
+          />
+          <SectionButton
             icon={Cpu}
             label="Models"
             active={activeSection === "models"}
@@ -163,11 +172,13 @@ export function Settings() {
             />
           )}
 
+          {activeSection === "files" && <FilesSection />}
+
           {activeSection === "models" && <ModelsSection />}
 
           {activeSection === "workspace" && <WorkspaceSection />}
 
-          {activeSection !== "profile" && activeSection !== "api-keys" && activeSection !== "workspace" && activeSection !== "models" && (
+          {activeSection !== "profile" && activeSection !== "api-keys" && activeSection !== "workspace" && activeSection !== "models" && activeSection !== "files" && (
             <>
               <div className="flex justify-end mb-4">
                 <div className="flex items-center gap-2">
@@ -435,6 +446,131 @@ function ApiKeyRow({
           >
             <Trash2 className="w-4 h-4" />
           </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FilesSection() {
+  const toast = useToast();
+  const { data, loading, refetch } = useApi(() => api.files.list());
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      await api.files.upload(file, setUploadProgress);
+      toast.success(`Uploaded ${file.name}`);
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDelete = async (key: string) => {
+    try {
+      await api.files.delete(key);
+      toast.success("File deleted");
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    }
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-slate-100 mb-1">File Storage</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Files uploaded to MinIO storage. Available to agents via workspace tools.
+        </p>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleUpload}
+          className="hidden"
+          accept="*/*"
+        />
+
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-2 px-4 py-2.5 bg-cyan-500/10 text-cyan-400 rounded-lg
+              hover:bg-cyan-500/20 transition-all text-sm font-medium border border-cyan-500/20 disabled:opacity-50"
+          >
+            <Upload className="w-4 h-4" />
+            {uploading ? `Uploading ${uploadProgress}%` : "Upload File"}
+          </button>
+          {uploading && (
+            <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 rounded-full transition-all"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-14 bg-slate-800/30 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : !data || data.files.length === 0 ? (
+          <div className="text-center py-8 text-sm text-slate-500">
+            No files uploaded yet.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {data.files.map((file) => (
+              <div
+                key={file.key}
+                className="flex items-center justify-between px-4 py-3 bg-slate-800/30 rounded-lg border border-slate-700/50"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <Paperclip className="w-4 h-4 text-cyan-400/70 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-200 truncate font-mono">{file.key}</p>
+                    <p className="text-xs text-slate-500">{formatSize(file.size)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a
+                    href={api.files.download(file.key)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                  <button
+                    onClick={() => handleDelete(file.key)}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

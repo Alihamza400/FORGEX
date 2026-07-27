@@ -251,6 +251,17 @@ export interface ModelListResponse {
   default_model: string;
 }
 
+export interface FileInfo {
+  key: string;
+  size: number;
+  etag: string;
+  last_modified: string;
+}
+
+export interface FileListResponse {
+  files: FileInfo[];
+}
+
 export interface RunHistory {
   id: number;
   agent_name: string;
