@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Save,
   RefreshCw,
@@ -9,6 +9,11 @@ import {
   Copy,
   Trash2,
   Plus,
+  FolderOpen,
+  ChevronRight,
+  Folder,
+  Home,
+  ArrowUp,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { useAuthStore } from "../store/auth";
@@ -19,6 +24,7 @@ import { Modal } from "../components/shared/Modal";
 import { useToast } from "../hooks/useToast";
 import { formatAbsolute } from "../utils/format";
 import type { LucideIcon } from "lucide-react";
+import type { BrowseEntry } from "../types/api";
 
 const defaultConfig = {
   api_host: "0.0.0.0",
@@ -48,6 +54,7 @@ const sections: {
   { id: "ollama", label: "Ollama", icon: Server, keys: ["ollama_base_url", "ollama_default_model"] },
   { id: "database", label: "Database", icon: Database, keys: ["redis_url", "database_url", "qdrant_url"] },
   { id: "storage", label: "Storage", icon: Database, keys: ["minio_endpoint", "minio_access_key", "minio_secret_key", "data_dir"] },
+  { id: "workspace", label: "Workspace", icon: FolderOpen, keys: [] },
   { id: "security", label: "Security", icon: Key, keys: ["token_expire_minutes", "rate_limit_per_minute"] },
 ];
 
@@ -123,6 +130,12 @@ export function Settings() {
             onClick={() => setActiveSection("storage")}
           />
           <SectionButton
+            icon={FolderOpen}
+            label="Workspace"
+            active={activeSection === "workspace"}
+            onClick={() => setActiveSection("workspace")}
+          />
+          <SectionButton
             icon={Key}
             label="Security"
             active={activeSection === "security"}
@@ -142,7 +155,9 @@ export function Settings() {
             />
           )}
 
-          {activeSection !== "profile" && activeSection !== "api-keys" && (
+          {activeSection === "workspace" && <WorkspaceSection />}
+
+          {activeSection !== "profile" && activeSection !== "api-keys" && activeSection !== "workspace" && (
             <>
               <div className="flex justify-end mb-4">
                 <div className="flex items-center gap-2">
@@ -413,6 +428,200 @@ function ApiKeyRow({
         )}
       </div>
     </div>
+  );
+}
+
+function WorkspaceSection() {
+  const toast = useToast();
+  const [workspace, setWorkspace] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [showBrowser, setShowBrowser] = useState(false);
+
+  useEffect(() => {
+    api.filesystem.getWorkspace()
+      .then((res) => setWorkspace(res.workspace))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleClear = async () => {
+    try {
+      await api.filesystem.setWorkspace("");
+      setWorkspace("");
+      toast.success("Workspace cleared (using default data dir)");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to clear workspace");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-slate-100 mb-1">Workspace Directory</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Agents run commands and access files relative to this directory.
+        </p>
+
+        {loading ? (
+          <div className="h-10 bg-slate-800/30 rounded-lg animate-pulse" />
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 px-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-lg font-mono text-sm text-slate-300 truncate">
+              {workspace || (
+                <span className="text-slate-500 italic">Default: /var/lib/forge</span>
+              )}
+            </div>
+            <button
+              onClick={() => setShowBrowser(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-cyan-500/10 text-cyan-400 rounded-lg
+                hover:bg-cyan-500/20 transition-all text-sm font-medium border border-cyan-500/20"
+            >
+              <Folder className="w-4 h-4" />
+              Browse
+            </button>
+            {workspace && (
+              <button
+                onClick={handleClear}
+                className="px-4 py-2.5 text-sm text-slate-400 glass rounded-lg glass-hover"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {showBrowser && (
+        <FolderBrowserModal
+          currentPath={workspace}
+          onSelect={async (path) => {
+            try {
+              await api.filesystem.setWorkspace(path);
+              setWorkspace(path);
+              setShowBrowser(false);
+              toast.success("Workspace set to " + path);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Failed to set workspace");
+            }
+          }}
+          onClose={() => setShowBrowser(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function FolderBrowserModal({
+  currentPath,
+  onSelect,
+  onClose,
+}: {
+  currentPath: string;
+  onSelect: (path: string) => void;
+  onClose: () => void;
+}) {
+  const [currentDir, setCurrentDir] = useState(currentPath || "");
+  const [entries, setEntries] = useState<BrowseEntry[]>([]);
+  const [parent, setParent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const navigate = useCallback(async (path: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.filesystem.browse(path);
+      setCurrentDir(res.path);
+      setParent(res.parent);
+      setEntries(res.entries.filter((e) => e.type === "directory"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to browse");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    navigate(currentPath || "");
+  }, []);
+
+  return (
+    <Modal open onClose={onClose} title="Select Workspace Directory" size="lg">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
+          <Folder className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+          <span className="text-sm font-mono text-slate-300 truncate">
+            {currentDir || "Home"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 glass rounded-lg glass-hover"
+          >
+            <Home className="w-3.5 h-3.5" />
+            Home
+          </button>
+          {parent && (
+            <button
+              onClick={() => navigate(parent)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 glass rounded-lg glass-hover"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+              Up
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <div className="px-3 py-2 text-sm text-red-400 bg-red-500/10 rounded-lg border border-red-500/20">
+            {error}
+          </div>
+        )}
+
+        <div className="max-h-80 overflow-y-auto space-y-1 border border-slate-700/50 rounded-lg p-2">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="w-5 h-5 text-slate-500 animate-spin" />
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="text-center py-8 text-sm text-slate-500">
+              No subdirectories
+            </div>
+          ) : (
+            entries.map((entry) => (
+              <button
+                key={entry.path}
+                onClick={() => navigate(entry.path)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300
+                  hover:bg-slate-800/50 transition-all group"
+              >
+                <Folder className="w-4 h-4 text-amber-400/70 flex-shrink-0" />
+                <span className="truncate flex-1 text-left">{entry.name}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            ))
+          )}
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-400 glass rounded-lg glass-hover"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSelect(currentDir)}
+            className="px-4 py-2 text-sm font-medium bg-cyan-500/10 text-cyan-400 rounded-lg
+              hover:bg-cyan-500/20 transition-all border border-cyan-500/20"
+          >
+            Select This Directory
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

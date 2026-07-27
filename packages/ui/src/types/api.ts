@@ -210,6 +210,24 @@ export interface StatCard {
   color: "cyan" | "emerald" | "violet" | "amber";
 }
 
+export interface BrowseEntry {
+  name: string;
+  path: string;
+  type: "directory" | "file";
+  size: number;
+  modified: number;
+}
+
+export interface BrowseResponse {
+  path: string;
+  parent: string | null;
+  entries: BrowseEntry[];
+}
+
+export interface WorkspaceResponse {
+  workspace: string;
+}
+
 export type MetricCardProps = ComponentProps<"div"> & {
   icon: LucideIcon;
   label: string;

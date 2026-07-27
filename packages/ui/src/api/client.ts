@@ -4,6 +4,7 @@ import type {
   AgentDescriptor,
   AgentListResponse,
   ApiKeyResponse,
+  BrowseResponse,
   CurrentUserResponse,
   HealthCheck,
   OrchestrateResponse,
@@ -11,6 +12,7 @@ import type {
   SubTaskResult,
   TaskResult,
   TokenResponse,
+  WorkspaceResponse,
 } from "../types/api";
 
 const API_BASE = "/api/v1";
@@ -138,6 +140,20 @@ export const api = {
           method: "DELETE",
         }),
     },
+  },
+
+  filesystem: {
+    browse: (path?: string) =>
+      request<BrowseResponse>(`/filesystem/browse?path=${encodeURIComponent(path ?? "")}`),
+
+    getWorkspace: () =>
+      request<WorkspaceResponse>("/filesystem/workspace"),
+
+    setWorkspace: (workspace: string) =>
+      request<WorkspaceResponse>("/filesystem/workspace", {
+        method: "POST",
+        body: JSON.stringify({ workspace }),
+      }),
   },
 
   agents: {
