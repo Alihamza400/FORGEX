@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -11,10 +12,16 @@ import {
   User,
   Key,
   FileJson,
+  Folder,
+  FolderOpen,
+  Home,
+  ArrowUp,
 } from "lucide-react";
 import { useAppStore } from "../../store/app";
 import { useAuthStore } from "../../store/auth";
-import type { NavItem } from "../../types/api";
+import { api } from "../../api/client";
+import { Modal } from "../shared/Modal";
+import type { BrowseEntry, NavItem } from "../../types/api";
 
 const navItems: NavItem[] = [
   { label: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -30,6 +37,16 @@ export function Sidebar() {
   const navigate = useNavigate();
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
   const { isAuthenticated, user, logout } = useAuthStore();
+  const [workspace, setWorkspace] = useState("");
+  const [showBrowser, setShowBrowser] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      api.filesystem.getWorkspace()
+        .then((res) => setWorkspace(res.workspace))
+        .catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   const visibleNavItems = navItems.filter((item) => {
     if (!item.requiredPermission) return true;
@@ -97,6 +114,46 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {isAuthenticated && (
+        <div className="px-2 pb-2">
+          <button
+            onClick={() => setShowBrowser(true)}
+            className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl text-slate-400
+              hover:text-cyan-400 hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/20 ${
+              sidebarCollapsed ? "justify-center" : ""
+            }`}
+            title={sidebarCollapsed ? (workspace || "Set workspace") : undefined}
+          >
+            <FolderOpen className="w-4 h-4 flex-shrink-0" />
+            <span className={`text-xs font-medium truncate transition-opacity duration-300 ${
+              sidebarCollapsed ? "opacity-0 w-0" : "opacity-100"
+            }`}>
+              {workspace ? (
+                <span className="text-slate-400">{workspace}</span>
+              ) : (
+                <span className="text-slate-500 italic">Open folder...</span>
+              )}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {showBrowser && (
+        <SidebarFolderBrowser
+          currentPath={workspace}
+          onSelect={async (path) => {
+            try {
+              await api.filesystem.setWorkspace(path);
+              setWorkspace(path);
+              setShowBrowser(false);
+            } catch {
+              /* ignore */
+            }
+          }}
+          onClose={() => setShowBrowser(false)}
+        />
+      )}
 
       <div className="border-t border-slate-800 px-2 py-3 space-y-1">
         {isAuthenticated && user ? (
@@ -169,5 +226,119 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+  );
+}
+
+function SidebarFolderBrowser({
+  currentPath,
+  onSelect,
+  onClose,
+}: {
+  currentPath: string;
+  onSelect: (path: string) => void;
+  onClose: () => void;
+}) {
+  const [currentDir, setCurrentDir] = useState(currentPath || "");
+  const [entries, setEntries] = useState<BrowseEntry[]>([]);
+  const [parent, setParent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const navigate = useCallback(async (path: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.filesystem.browse(path);
+      setCurrentDir(res.path);
+      setParent(res.parent);
+      setEntries(res.entries.filter((e) => e.type === "directory"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to browse");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    navigate(currentPath || "");
+  }, []);
+
+  return (
+    <Modal open onClose={onClose} title="Open Folder" size="lg">
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
+          <Folder className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+          <span className="text-sm font-mono text-slate-300 truncate">
+            {currentDir || "Home"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 glass rounded-lg glass-hover"
+          >
+            <Home className="w-3.5 h-3.5" />
+            Home
+          </button>
+          {parent && (
+            <button
+              onClick={() => navigate(parent)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 glass rounded-lg glass-hover"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+              Up
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        <div className="max-h-72 overflow-y-auto space-y-1">
+          {loading ? (
+            <div className="space-y-2 p-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-8 bg-slate-800/30 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : entries.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-8">No subdirectories</p>
+          ) : (
+            entries.map((entry) => (
+              <button
+                key={entry.name}
+                onClick={() => navigate(entry.path)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300
+                  hover:bg-slate-800/50 transition-all text-left"
+              >
+                <Folder className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <span className="truncate">{entry.name}</span>
+              </button>
+            ))
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2 border-t border-slate-800">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-400 glass rounded-lg glass-hover"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSelect(currentDir)}
+            disabled={!currentDir}
+            className="px-4 py-2 text-sm font-medium bg-cyan-500/10 text-cyan-400 rounded-lg
+              hover:bg-cyan-500/20 transition-all border border-cyan-500/20 disabled:opacity-50"
+          >
+            Select Folder
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -106,9 +106,14 @@ async def login(req: LoginRequest, request: Request, db: Database = Depends(_get
     auth_service = AuthService()
 
     async with db.session() as session:
-        result = await session.execute(
-            select(UserModel).where(UserModel.username == req.username),
-        )
+        if "@" in req.username:
+            result = await session.execute(
+                select(UserModel).where(UserModel.email == req.username),
+            )
+        else:
+            result = await session.execute(
+                select(UserModel).where(UserModel.username == req.username),
+            )
         user = result.scalar_one_or_none()
 
         if not user or not auth_service.verify_password(req.password, user.password_hash):
