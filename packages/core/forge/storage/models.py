@@ -64,6 +64,24 @@ class LogModel(Base):
         return f"<LogModel(id={self.id}, level='{self.level}', agent='{self.agent_name}')>"
 
 
+class McpServerModel(Base):
+    __tablename__ = "mcp_servers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(128), unique=True, nullable=False, index=True)
+    transport_type = Column(String(16), nullable=False, default="http")
+    url = Column(String(512), nullable=True)
+    command = Column(String(512), nullable=True)
+    cwd = Column(String(512), nullable=True)
+    status = Column(String(32), default="disconnected")
+    config = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<McpServerModel(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+
 class RunModel(Base):
     __tablename__ = "runs"
 

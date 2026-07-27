@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from forge.core.logging import get_logger
-from forge.storage.models import AgentModel, LogModel, RunModel, TaskModel
+from forge.storage.models import AgentModel, LogModel, McpServerModel, RunModel, TaskModel
 from sqlalchemy import delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -209,3 +209,64 @@ class RunRepository:
             .limit(limit),
         )
         return list(result.scalars().all())
+
+
+class McpServerRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def create(
+        self,
+        name: str,
+        transport_type: str,
+        url: str | None = None,
+        command: str | None = None,
+        cwd: str | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> McpServerModel:
+        server = McpServerModel(
+            name=name,
+            transport_type=transport_type,
+            url=url,
+            command=command,
+            cwd=cwd,
+            config=config,
+        )
+        self.session.add(server)
+        await self.session.commit()
+        await self.session.refresh(server)
+        logger.info("created mcp server", id=server.id, name=server.name)
+        return server
+
+    async def get_by_id(self, server_id: int) -> McpServerModel | None:
+        result = await self.session.execute(
+            select(McpServerModel).where(McpServerModel.id == server_id),
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_name(self, name: str) -> McpServerModel | None:
+        result = await self.session.execute(
+            select(McpServerModel).where(McpServerModel.name == name),
+        )
+        return result.scalar_one_or_none()
+
+    async def list_all(self) -> list[McpServerModel]:
+        result = await self.session.execute(
+            select(McpServerModel).order_by(desc(McpServerModel.updated_at)),
+        )
+        return list(result.scalars().all())
+
+    async def update_status(self, server_id: int, status: str) -> McpServerModel | None:
+        values: dict[str, Any] = {"status": status, "updated_at": datetime.now(UTC)}
+        await self.session.execute(
+            update(McpServerModel).where(McpServerModel.id == server_id).values(**values),
+        )
+        await self.session.commit()
+        return await self.get_by_id(server_id)
+
+    async def delete(self, server_id: int) -> bool:
+        result = await self.session.execute(
+            delete(McpServerModel).where(McpServerModel.id == server_id),
+        )
+        await self.session.commit()
+        return result.rowcount > 0

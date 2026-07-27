@@ -262,6 +262,31 @@ export interface FileListResponse {
   files: FileInfo[];
 }
 
+export interface McpServer {
+  id: number;
+  name: string;
+  transport_type: string;
+  url: string | null;
+  command: string | null;
+  cwd: string | null;
+  status: string;
+  config: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpServerTestResult {
+  connected: boolean;
+  tools: { name: string; description: string }[];
+  error: string | null;
+}
+
+export interface McpServerConnectResult {
+  connected: boolean;
+  tools_registered: number;
+  error: string | null;
+}
+
 export interface RunHistory {
   id: number;
   agent_name: string;

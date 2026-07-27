@@ -19,6 +19,10 @@ import {
   Upload,
   Paperclip,
   ExternalLink,
+  Plug,
+  PlugZap,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { useAuthStore } from "../store/auth";
@@ -135,6 +139,12 @@ export function Settings() {
             onClick={() => setActiveSection("storage")}
           />
           <SectionButton
+            icon={Plug}
+            label="MCP Servers"
+            active={activeSection === "mcp"}
+            onClick={() => setActiveSection("mcp")}
+          />
+          <SectionButton
             icon={Paperclip}
             label="Files"
             active={activeSection === "files"}
@@ -172,13 +182,15 @@ export function Settings() {
             />
           )}
 
+          {activeSection === "mcp" && <McpServersSection />}
+
           {activeSection === "files" && <FilesSection />}
 
           {activeSection === "models" && <ModelsSection />}
 
           {activeSection === "workspace" && <WorkspaceSection />}
 
-          {activeSection !== "profile" && activeSection !== "api-keys" && activeSection !== "workspace" && activeSection !== "models" && activeSection !== "files" && (
+          {activeSection !== "profile" && activeSection !== "api-keys" && activeSection !== "workspace" && activeSection !== "models" && activeSection !== "files" && activeSection !== "mcp" && (
             <>
               <div className="flex justify-end mb-4">
                 <div className="flex items-center gap-2">
@@ -446,6 +458,266 @@ function ApiKeyRow({
           >
             <Trash2 className="w-4 h-4" />
           </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function McpServersSection() {
+  const toast = useToast();
+  const { data, loading, refetch } = useApi(() => api.mcp.list());
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newServer, setNewServer] = useState({ name: "", url: "", transport_type: "http", command: "", cwd: "" });
+  const [testing, setTesting] = useState<number | null>(null);
+  const [connecting, setConnecting] = useState<number | null>(null);
+
+  const handleAdd = async () => {
+    if (!newServer.name.trim()) { toast.error("Name is required"); return; }
+    if (newServer.transport_type === "http" && !newServer.url.trim()) { toast.error("URL is required for HTTP transport"); return; }
+    if (newServer.transport_type === "stdio" && !newServer.command.trim()) { toast.error("Command is required for stdio transport"); return; }
+    try {
+      await api.mcp.create({
+        name: newServer.name.trim(),
+        transport_type: newServer.transport_type,
+        url: newServer.url.trim() || undefined,
+        command: newServer.command.trim() || undefined,
+        cwd: newServer.cwd.trim() || undefined,
+      });
+      toast.success("MCP server added");
+      setShowAddForm(false);
+      setNewServer({ name: "", url: "", transport_type: "http", command: "", cwd: "" });
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add");
+    }
+  };
+
+  const handleTest = async (id: number) => {
+    setTesting(id);
+    try {
+      const res = await api.mcp.test(id);
+      if (res.connected) {
+        toast.success(`Connected! ${res.tools.length} tools available`);
+      } else {
+        toast.error(res.error ?? "Connection failed");
+      }
+    } catch (err) {
+      toast.error("Test failed");
+    } finally {
+      setTesting(null);
+    }
+  };
+
+  const handleConnect = async (id: number) => {
+    setConnecting(id);
+    try {
+      const res = await api.mcp.connect(id);
+      if (res.connected) {
+        toast.success(`Connected — ${res.tools_registered} tools registered`);
+        refetch();
+      } else {
+        toast.error(res.error ?? "Connection failed");
+      }
+    } catch (err) {
+      toast.error("Connection failed");
+    } finally {
+      setConnecting(null);
+    }
+  };
+
+  const handleDisconnect = async (id: number) => {
+    try {
+      await api.mcp.disconnect(id);
+      toast.success("Disconnected");
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to disconnect");
+    }
+  };
+
+  const handleDelete = async (id: number, name: string) => {
+    try {
+      await api.mcp.delete(id);
+      toast.success(`Removed '${name}'`);
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-100">MCP Servers</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Connect external MCP servers to extend agent capabilities.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-cyan-500/10 text-cyan-400 rounded-lg
+              hover:bg-cyan-500/20 transition-all font-medium border border-cyan-500/20"
+          >
+            <Plus className="w-4 h-4" />
+            Add Server
+          </button>
+        </div>
+
+        {showAddForm && (
+          <div className="mb-6 p-4 bg-slate-800/30 rounded-lg border border-slate-700 space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Name</label>
+              <input
+                type="text"
+                value={newServer.name}
+                onChange={(e) => setNewServer({ ...newServer, name: e.target.value })}
+                placeholder="e.g. my-filesystem-server"
+                className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+              />
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1">Transport</label>
+                <select
+                  value={newServer.transport_type}
+                  onChange={(e) => setNewServer({ ...newServer, transport_type: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-cyan-500/50 transition-colors"
+                >
+                  <option value="http">HTTP</option>
+                  <option value="stdio">STDIO</option>
+                </select>
+              </div>
+            </div>
+            {newServer.transport_type === "http" ? (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">URL</label>
+                <input
+                  type="text"
+                  value={newServer.url}
+                  onChange={(e) => setNewServer({ ...newServer, url: e.target.value })}
+                  placeholder="http://localhost:5000"
+                  className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Command</label>
+                  <input
+                    type="text"
+                    value={newServer.command}
+                    onChange={(e) => setNewServer({ ...newServer, command: e.target.value })}
+                    placeholder="node path/to/server.js"
+                    className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Working Directory (optional)</label>
+                  <input
+                    type="text"
+                    value={newServer.cwd}
+                    onChange={(e) => setNewServer({ ...newServer, cwd: e.target.value })}
+                    placeholder="/path/to/server"
+                    className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+                  />
+                </div>
+              </>
+            )}
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="px-4 py-2 text-sm text-slate-400 glass rounded-lg glass-hover"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdd}
+                className="px-4 py-2 text-sm font-medium bg-cyan-500/10 text-cyan-400 rounded-lg hover:bg-cyan-500/20 transition-all border border-cyan-500/20"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2].map((i) => <div key={i} className="h-16 bg-slate-800/30 rounded-lg animate-pulse" />)}
+          </div>
+        ) : !data || data.length === 0 ? (
+          <div className="text-center py-8 text-sm text-slate-500">
+            No MCP servers configured. Add one above.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {data.map((server) => (
+              <div
+                key={server.id}
+                className="flex items-center justify-between px-4 py-3 bg-slate-800/30 rounded-lg border border-slate-700/50"
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={`p-1.5 rounded-lg ${
+                    server.status === "connected" ? "bg-emerald-500/10 text-emerald-400" :
+                    server.status === "error" ? "bg-red-500/10 text-red-400" :
+                    "bg-slate-700/30 text-slate-500"
+                  }`}>
+                    {server.status === "connected" ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-200">{server.name}</p>
+                    <p className="text-xs text-slate-500 font-mono truncate">
+                      {server.transport_type === "http" ? server.url : server.command}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    server.status === "connected" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                    server.status === "error" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+                    "bg-slate-700/30 text-slate-500 border border-slate-700"
+                  }`}>
+                    {server.status}
+                  </span>
+                  <button
+                    onClick={() => handleTest(server.id)}
+                    disabled={testing === server.id}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all"
+                    title="Test connection"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${testing === server.id ? "animate-spin" : ""}`} />
+                  </button>
+                  {server.status === "connected" ? (
+                    <button
+                      onClick={() => handleDisconnect(server.id)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
+                      title="Disconnect"
+                    >
+                      <PlugZap className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleConnect(server.id)}
+                      disabled={connecting === server.id}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                      title="Connect"
+                    >
+                      <Plug className={`w-4 h-4 ${connecting === server.id ? "animate-pulse" : ""}`} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(server.id, server.name)}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

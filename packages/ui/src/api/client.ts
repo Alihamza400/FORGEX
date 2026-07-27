@@ -8,6 +8,9 @@ import type {
   CurrentUserResponse,
   FileListResponse,
   HealthCheck,
+  McpServer,
+  McpServerConnectResult,
+  McpServerTestResult,
   ModelListResponse,
   OrchestrateResponse,
   OrchestrationConfig,
@@ -191,6 +194,43 @@ export const api = {
 
     delete: (key: string) =>
       request<{ status: string; key: string }>(`/files/${encodeURIComponent(key)}`, { method: "DELETE" }),
+  },
+
+  mcp: {
+    list: () => request<McpServer[]>("/mcp/servers"),
+
+    create: (data: {
+      name: string;
+      transport_type?: string;
+      url?: string;
+      command?: string;
+      cwd?: string;
+      config?: Record<string, unknown>;
+    }) =>
+      request<McpServer>("/mcp/servers", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    delete: (id: number) =>
+      request<{ status: string; name: string }>(`/mcp/servers/${id}`, {
+        method: "DELETE",
+      }),
+
+    test: (id: number) =>
+      request<McpServerTestResult>(`/mcp/servers/${id}/test`, {
+        method: "POST",
+      }),
+
+    connect: (id: number) =>
+      request<McpServerConnectResult>(`/mcp/servers/${id}/connect`, {
+        method: "POST",
+      }),
+
+    disconnect: (id: number) =>
+      request<{ status: string; name: string }>(`/mcp/servers/${id}/disconnect`, {
+        method: "POST",
+      }),
   },
 
   models: {
