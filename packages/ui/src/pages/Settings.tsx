@@ -14,6 +14,8 @@ import {
   Folder,
   Home,
   ArrowUp,
+  Cpu,
+  Download,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { useAuthStore } from "../store/auth";
@@ -130,6 +132,12 @@ export function Settings() {
             onClick={() => setActiveSection("storage")}
           />
           <SectionButton
+            icon={Cpu}
+            label="Models"
+            active={activeSection === "models"}
+            onClick={() => setActiveSection("models")}
+          />
+          <SectionButton
             icon={FolderOpen}
             label="Workspace"
             active={activeSection === "workspace"}
@@ -155,9 +163,11 @@ export function Settings() {
             />
           )}
 
+          {activeSection === "models" && <ModelsSection />}
+
           {activeSection === "workspace" && <WorkspaceSection />}
 
-          {activeSection !== "profile" && activeSection !== "api-keys" && activeSection !== "workspace" && (
+          {activeSection !== "profile" && activeSection !== "api-keys" && activeSection !== "workspace" && activeSection !== "models" && (
             <>
               <div className="flex justify-end mb-4">
                 <div className="flex items-center gap-2">
@@ -425,6 +435,102 @@ function ApiKeyRow({
           >
             <Trash2 className="w-4 h-4" />
           </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModelsSection() {
+  const toast = useToast();
+  const { data, loading, refetch } = useApi(() => api.models.list());
+  const [pulling, setPulling] = useState<string | null>(null);
+  const [pullName, setPullName] = useState("");
+
+  const handlePull = async () => {
+    if (!pullName.trim()) return;
+    setPulling(pullName.trim());
+    try {
+      await api.models.pull(pullName.trim());
+      toast.success(`Model '${pullName.trim()}' pulled successfully`);
+      setPullName("");
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to pull model");
+    } finally {
+      setPulling(null);
+    }
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return "unknown";
+    const gb = bytes / 1_000_000_000;
+    return gb >= 1 ? `${gb.toFixed(1)} GB` : `${(bytes / 1_000_000).toFixed(0)} MB`;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-slate-100 mb-1">Ollama Models</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Manage models installed on your Ollama server.
+        </p>
+
+        <div className="flex gap-3 mb-6">
+          <input
+            type="text"
+            value={pullName}
+            onChange={(e) => setPullName(e.target.value)}
+            placeholder="e.g. llama3.2:3b, mistral, codellama"
+            onKeyDown={(e) => e.key === "Enter" && handlePull()}
+            className="flex-1 px-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-lg text-sm
+              text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
+          />
+          <button
+            onClick={handlePull}
+            disabled={pulling !== null || !pullName.trim()}
+            className="flex items-center gap-2 px-4 py-2.5 bg-cyan-500/10 text-cyan-400 rounded-lg
+              hover:bg-cyan-500/20 transition-all text-sm font-medium border border-cyan-500/20 disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            {pulling ? "Pulling..." : "Pull"}
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-14 bg-slate-800/30 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : !data || data.models.length === 0 ? (
+          <div className="text-center py-8 text-sm text-slate-500">
+            No models installed. Pull one above.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {data.models.map((model) => (
+              <div
+                key={model.name}
+                className="flex items-center justify-between px-4 py-3 bg-slate-800/30 rounded-lg border border-slate-700/50"
+              >
+                <div className="flex items-center gap-3">
+                  <Cpu className="w-4 h-4 text-cyan-400/70" />
+                  <div>
+                    <p className="text-sm font-medium text-slate-200 font-mono">{model.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {formatSize(model.size)}
+                    </p>
+                  </div>
+                </div>
+                {data.default_model === model.name && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    Default
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

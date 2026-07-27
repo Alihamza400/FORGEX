@@ -228,6 +228,18 @@ export interface WorkspaceResponse {
   workspace: string;
 }
 
+export interface ModelInfo {
+  name: string;
+  size: number;
+  modified: string;
+  digest: string;
+}
+
+export interface ModelListResponse {
+  models: ModelInfo[];
+  default_model: string;
+}
+
 export type MetricCardProps = ComponentProps<"div"> & {
   icon: LucideIcon;
   label: string;

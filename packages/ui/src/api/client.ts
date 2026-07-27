@@ -7,6 +7,7 @@ import type {
   BrowseResponse,
   CurrentUserResponse,
   HealthCheck,
+  ModelListResponse,
   OrchestrateResponse,
   OrchestrationConfig,
   SubTaskResult,
@@ -153,6 +154,16 @@ export const api = {
       request<WorkspaceResponse>("/filesystem/workspace", {
         method: "POST",
         body: JSON.stringify({ workspace }),
+      }),
+  },
+
+  models: {
+    list: () => request<ModelListResponse>("/models"),
+
+    pull: (name: string) =>
+      request<{ status: string; model: string }>("/models/pull", {
+        method: "POST",
+        body: JSON.stringify({ name }),
       }),
   },
 
