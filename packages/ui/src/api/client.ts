@@ -10,6 +10,7 @@ import type {
   ModelListResponse,
   OrchestrateResponse,
   OrchestrationConfig,
+  RunHistory,
   SubTaskResult,
   TaskResult,
   TokenResponse,
@@ -169,6 +170,12 @@ export const api = {
 
   agents: {
     list: () => request<AgentListResponse>("/agents"),
+
+    runs: (name: string, limit?: number, offset?: number) =>
+      request<RunHistory[]>(`/agents/${encodeURIComponent(name)}/runs?limit=${limit ?? 20}&offset=${offset ?? 0}`),
+
+    runDetail: (name: string, taskId: number) =>
+      request<RunHistory>(`/agents/${encodeURIComponent(name)}/runs/${taskId}`),
 
     runStream: (
       payload: { config_path?: string; config?: AgentConfig; task: string },

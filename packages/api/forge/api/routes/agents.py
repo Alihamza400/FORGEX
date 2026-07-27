@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
+from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from forge.core.logging import get_logger
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from forge.auth.dependencies import get_current_user, require_permission
 from forge.core.agent_config import AgentConfig, TaskResult
@@ -12,8 +15,10 @@ from forge.core.config_loader import ConfigLoadError, load_agent_config
 from forge.orchestrator.registry import get_registry
 from forge.runtime.agent import AgentRuntime
 from forge.storage.postgres import Database
-from forge.storage.repository import AgentRepository
+from forge.storage.repository import AgentRepository, TaskRepository
 from pydantic import BaseModel, Field
+
+logger = get_logger("forge.api.routes.agents")
 
 router = APIRouter()
 
@@ -51,6 +56,20 @@ class RunRequest(BaseModel):
     task: str = Field(..., min_length=1, max_length=100000)
 
 
+class RunHistoryResponse(BaseModel):
+    id: int
+    agent_name: str
+    input: str
+    output: str | None
+    status: str
+    error: str | None
+    iterations: int
+    tokens_used: int
+    duration_ms: int
+    created_at: str
+    finished_at: str | None
+
+
 class ValidateRequest(BaseModel):
     config_path: str
     config: AgentConfig | None = None
@@ -60,6 +79,30 @@ class ValidateResponse(BaseModel):
     valid: bool
     name: str = ""
     errors: list[str] = []
+
+
+async def _persist_task(agent_name: str, task: str, result: TaskResult) -> None:
+    db = Database()
+    try:
+        await db.connect()
+        async with db.session() as session:
+            repo = TaskRepository(session)
+            status = "completed" if not result.error else "failed"
+            await repo.create(
+                agent_name=agent_name,
+                input=task,
+                output=result.output,
+                status=status,
+                error=result.error,
+                iterations=result.iterations,
+                tokens_used=result.tokens_used,
+                duration_ms=result.duration_ms,
+                finished_at=datetime.now(),
+            )
+    except Exception as e:
+        logger.warning("failed to persist task result", error=str(e))
+    finally:
+        await db.close()
 
 
 async def get_db() -> Database:
@@ -213,6 +256,7 @@ async def run_agent(
     try:
         await runtime.initialize()
         result = await runtime.run(req.task)
+        await _persist_task(config.name, req.task, result)
         return result
     finally:
         await runtime.close()
@@ -237,11 +281,21 @@ async def run_agent_stream(
     await runtime.initialize()
 
     async def event_stream() -> AsyncIterator[str]:
+        last_result: TaskResult | None = None
         try:
             async for event in runtime.run_streaming(req.task):
+                if isinstance(event, str) and '"type":"done"' in event:
+                    try:
+                        parsed = json.loads(event[6:]) if event.startswith("data: ") else json.loads(event)
+                        if parsed.get("type") == "done":
+                            last_result = TaskResult(**parsed["data"])
+                    except Exception:
+                        pass
                 yield event
         finally:
             await runtime.close()
+            if last_result:
+                await _persist_task(config.name, req.task, last_result)
 
     return StreamingResponse(
         event_stream(),
@@ -251,3 +305,67 @@ async def run_agent_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/agents/{name}/runs", response_model=list[RunHistoryResponse])
+async def list_agent_runs(
+    name: str,
+    limit: int = Query(default=20, le=100),
+    offset: int = Query(default=0, ge=0),
+    _: Any = Depends(require_permission("agent:read")),
+) -> list[RunHistoryResponse]:
+    db = Database()
+    try:
+        await db.connect()
+        async with db.session() as session:
+            repo = TaskRepository(session)
+            tasks = await repo.list_by_agent(agent_name=name, limit=limit, offset=offset)
+            return [
+                RunHistoryResponse(
+                    id=t.id,
+                    agent_name=t.agent_name,
+                    input=t.input,
+                    output=t.output,
+                    status=t.status,
+                    error=t.error,
+                    iterations=t.iterations,
+                    tokens_used=t.tokens_used,
+                    duration_ms=t.duration_ms,
+                    created_at=str(t.created_at),
+                    finished_at=str(t.finished_at) if t.finished_at else None,
+                )
+                for t in tasks
+            ]
+    finally:
+        await db.close()
+
+
+@router.get("/agents/{name}/runs/{task_id}", response_model=RunHistoryResponse)
+async def get_agent_run(
+    name: str,
+    task_id: int,
+    _: Any = Depends(require_permission("agent:read")),
+) -> RunHistoryResponse:
+    db = Database()
+    try:
+        await db.connect()
+        async with db.session() as session:
+            repo = TaskRepository(session)
+            task = await repo.get_by_id(task_id)
+            if not task or task.agent_name != name:
+                raise HTTPException(status_code=404, detail="Run not found")
+            return RunHistoryResponse(
+                id=task.id,
+                agent_name=task.agent_name,
+                input=task.input,
+                output=task.output,
+                status=task.status,
+                error=task.error,
+                iterations=task.iterations,
+                tokens_used=task.tokens_used,
+                duration_ms=task.duration_ms,
+                created_at=str(task.created_at),
+                finished_at=str(task.finished_at) if task.finished_at else None,
+            )
+    finally:
+        await db.close()

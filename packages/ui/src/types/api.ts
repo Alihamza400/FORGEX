@@ -240,6 +240,20 @@ export interface ModelListResponse {
   default_model: string;
 }
 
+export interface RunHistory {
+  id: number;
+  agent_name: string;
+  input: string;
+  output: string | null;
+  status: string;
+  error: string | null;
+  iterations: number;
+  tokens_used: number;
+  duration_ms: number;
+  created_at: string;
+  finished_at: string | null;
+}
+
 export type MetricCardProps = ComponentProps<"div"> & {
   icon: LucideIcon;
   label: string;

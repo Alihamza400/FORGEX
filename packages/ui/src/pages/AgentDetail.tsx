@@ -10,6 +10,8 @@ import {
   Thermometer,
   Braces,
   Terminal,
+  Clock,
+  History,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { api } from "../api/client";
@@ -20,7 +22,7 @@ import { PageSkeleton } from "../components/shared/LoadingSkeleton";
 import { useToast } from "../hooks/useToast";
 import { useAppStore } from "../store/app";
 import { formatRelative } from "../utils/format";
-import type { AgentConfig, TaskResult } from "../types/api";
+import type { AgentConfig, TaskResult, RunHistory } from "../types/api";
 
 export function AgentDetail() {
   const { name } = useParams<{ name: string }>();
@@ -29,6 +31,10 @@ export function AgentDetail() {
   const { agents } = useAppStore();
   const agent = agents.find((a) => a.name === name);
   const { data: agentsData } = useApi(() => api.agents.list());
+  const { data: runHistory, refetch: refetchRuns } = useApi(
+    () => (name ? api.agents.runs(name) : Promise.resolve([])),
+    [name],
+  );
 
   const [task, setTask] = useState("");
   const [running, setRunning] = useState(false);
@@ -108,6 +114,7 @@ export function AgentDetail() {
           error: null,
           duration_ms: 0,
         });
+        refetchRuns();
       },
       (err: Error) => {
         setRunning(false);
@@ -121,6 +128,7 @@ export function AgentDetail() {
           error: err.message,
           duration_ms: 0,
         });
+        refetchRuns();
       },
     );
   }, [task, agent, toast, currentIteration]);
@@ -310,6 +318,77 @@ export function AgentDetail() {
               language="text"
               title="Error"
             />
+          )}
+        </div>
+      )}
+
+      {runHistory && runHistory.length > 0 && (
+        <div className="space-y-3 animate-fade-in">
+          <h2 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
+            <History className="w-5 h-5" />
+            Run History
+          </h2>
+          <div className="space-y-2">
+            {runHistory.map((run) => (
+              <RunHistoryCard key={run.id} run={run} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RunHistoryCard({ run }: { run: RunHistory }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const timeAgo = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
+  return (
+    <div className="glass rounded-xl">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+      >
+        <div className={`p-1.5 rounded-lg ${
+          run.status === "completed" ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+        }`}>
+          {run.status === "completed" ? (
+            <Terminal className="w-3.5 h-3.5" />
+          ) : (
+            <Terminal className="w-3.5 h-3.5" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-slate-200 truncate">{run.input}</p>
+          <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+            <Clock className="w-3 h-3" />
+            {timeAgo(run.created_at)}
+            <span>·</span>
+            <span>{run.iterations} iterations</span>
+            <span>·</span>
+            <span>{run.duration_ms}ms</span>
+          </p>
+        </div>
+        <StatusBadge status={run.status as "completed" | "failed"} size="sm" />
+      </button>
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3 border-t border-slate-800 pt-3">
+          {run.output && (
+            <CodeBlock code={run.output} language="text" title="Output" />
+          )}
+          {run.error && (
+            <CodeBlock code={run.error} language="text" title="Error" />
           )}
         </div>
       )}
