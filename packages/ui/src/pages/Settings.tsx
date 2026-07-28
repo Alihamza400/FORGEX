@@ -42,7 +42,7 @@ const defaultConfig = {
   log_level: "INFO",
   log_json: false,
   ollama_base_url: "http://localhost:11434",
-  ollama_default_model: "llama3.2:3b",
+  ollama_default_model: "tinyllama",
   redis_url: "redis://localhost:6379/0",
   database_url: "postgresql+asyncpg://forge:forge_secret@localhost:5432/forge",
   qdrant_url: "http://localhost:6333",

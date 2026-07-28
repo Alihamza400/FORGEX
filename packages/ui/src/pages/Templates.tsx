@@ -259,7 +259,7 @@ function CreateTemplateModal({
   "role": "Assistant",
   "goal": "Help users with tasks",
   "model": {
-    "name": "llama3.2:3b",
+    "name": "tinyllama",
     "provider": "ollama",
     "temperature": 0.7,
     "max_tokens": 2048,

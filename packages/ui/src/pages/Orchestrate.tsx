@@ -89,7 +89,7 @@ export function Orchestrate() {
             name: agent.name,
             role: agent.role,
             goal: agent.goal,
-            model: { name: "llama3.2:3b", provider: "ollama", temperature: 0.7, max_tokens: 2048, top_p: 0.9 },
+            model: { name: "tinyllama", provider: "ollama", temperature: 0.7, max_tokens: 2048, top_p: 0.9 },
             tools: [],
             memory: { type: "none", collection: "default", embedding_model: "nomic-embed-text", top_k: 5, score_threshold: 0.5 },
             max_iterations: 10,

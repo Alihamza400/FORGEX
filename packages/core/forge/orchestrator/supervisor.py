@@ -114,7 +114,7 @@ class SupervisorOrchestrator:
                 try:
                     review = await self._llm.chat(
                         messages=messages,  # type: ignore[arg-type]
-                        model="llama3.2:3b",
+                        model="tinyllama",
                         temperature=0.3,
                         max_tokens=1024,
                     )
@@ -147,7 +147,7 @@ class SupervisorOrchestrator:
                 messages.append({"role": "user", "content": final_prompt})
                 final = await self._llm.chat(
                     messages=messages,  # type: ignore[arg-type]
-                    model="llama3.2:3b",
+                    model="tinyllama",
                     temperature=0.3,
                     max_tokens=4096,
                 )

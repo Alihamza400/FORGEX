@@ -29,7 +29,7 @@ class AgentCreateRequest(BaseModel):
     role: str = Field(..., min_length=1, max_length=1024)
     goal: str = Field(..., min_length=1, max_length=4096)
     config_yaml: str = ""
-    model_name: str = "llama3.2:3b"
+    model_name: str = "tinyllama"
 
 
 class AgentUpdateRequest(BaseModel):

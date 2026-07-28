@@ -66,7 +66,7 @@ export function AgentDetail() {
       name: agent!.name,
       role: agent!.role,
       goal: agent!.goal,
-      model: { name: "llama3.2:3b", provider: "ollama", temperature: 0.7, max_tokens: 2048, top_p: 0.9 },
+      model: { name: "tinyllama", provider: "ollama", temperature: 0.7, max_tokens: 2048, top_p: 0.9 },
       tools: [],
       memory: { type: "none", collection: "default", embedding_model: "nomic-embed-text", top_k: 5, score_threshold: 0.5 },
       max_iterations: 10,
@@ -214,7 +214,7 @@ export function AgentDetail() {
         <MetricCard icon={Cpu} label="Status" value={agent.status} color="cyan" />
         <MetricCard icon={Hash} label="Capabilities" value={agent.capabilities.length} color="violet" />
         <MetricCard icon={Timer} label="Last Heartbeat" value={formatRelative(agent.last_heartbeat)} color="amber" />
-        <MetricCard icon={Thermometer} label="Model" value="llama3.2:3b" color="emerald" />
+        <MetricCard icon={Thermometer} label="Model" value="tinyllama" color="emerald" />
       </div>
 
       <div className="glass rounded-xl p-5">
@@ -391,7 +391,7 @@ function SaveTemplateModal({
         name: agentName,
         role: agentRole,
         goal: agentGoal,
-        model: { name: "llama3.2:3b", provider: "ollama", temperature: 0.7, max_tokens: 2048, top_p: 0.9 },
+        model: { name: "tinyllama", provider: "ollama", temperature: 0.7, max_tokens: 2048, top_p: 0.9 },
         tools: [],
         memory: { type: "none", collection: "default", embedding_model: "nomic-embed-text", top_k: 5, score_threshold: 0.5 },
         max_iterations: 10,

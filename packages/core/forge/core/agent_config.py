@@ -20,7 +20,7 @@ class MemoryConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    name: str = "llama3.2:3b"
+    name: str = "tinyllama"
     provider: str = "ollama"
     temperature: float = 0.7
     max_tokens: int = 2048

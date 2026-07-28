@@ -56,7 +56,7 @@ class ForgeSettings(BaseSettings):
         alias="OLLAMA_BASE_URL",
     )
     ollama_default_model: str = Field(
-        default="llama3.2:3b",
+        default="tinyllama",
         alias="FORGE_DEFAULT_MODEL",
     )
 

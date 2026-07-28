@@ -18,7 +18,7 @@ class AgentModel(Base):
     role = Column(String(1024), nullable=False)
     goal = Column(Text, nullable=False)
     config_yaml = Column(Text, nullable=True)
-    model_name = Column(String(128), default="llama3.2:3b")
+    model_name = Column(String(128), default="tinyllama")
     status = Column(String(32), default="inactive")
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
