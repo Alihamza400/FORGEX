@@ -238,12 +238,18 @@ function RegisterAgentModal({
         environment: {},
       };
       const result = await api.agents.validate({ config });
-      if (result.valid) {
-        toast.success(`Agent "${name}" configuration validated`);
-        onRegistered();
-      } else {
+      if (!result.valid) {
         toast.error(result.errors.join(", "));
+        return;
       }
+      await api.agents.create({
+        name,
+        role,
+        goal,
+        model_name: config.model.name,
+      });
+      toast.success(`Agent "${name}" created`);
+      onRegistered();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Validation failed");
     } finally {

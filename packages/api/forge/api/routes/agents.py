@@ -72,7 +72,7 @@ class RunHistoryResponse(BaseModel):
 
 
 class ValidateRequest(BaseModel):
-    config_path: str
+    config_path: str = ""
     config: AgentConfig | None = None
 
 
