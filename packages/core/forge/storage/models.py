@@ -7,7 +7,7 @@ from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 
 
 def _utcnow() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class AgentModel(Base):

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from forge.core.logging import get_logger
-from forge.storage.models import AgentModel, AgentTemplateModel, LogModel, McpServerModel, RunModel, TaskModel, WebhookModel
+from forge.storage.models import AgentModel, AgentTemplateModel, LogModel, McpServerModel, RunModel, TaskModel, WebhookModel, _utcnow
 from sqlalchemy import delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,7 +42,7 @@ class AgentRepository:
         return list(result.scalars().all())
 
     async def update(self, agent_id: int, **kwargs: Any) -> AgentModel | None:
-        kwargs["updated_at"] = datetime.now(UTC)
+        kwargs["updated_at"] = _utcnow()
         await self.session.execute(
             update(AgentModel).where(AgentModel.id == agent_id).values(**kwargs),
         )
@@ -111,7 +111,7 @@ class TaskRepository:
     ) -> TaskModel | None:
         values: dict[str, Any] = {"status": status, **kwargs}
         if status in ("completed", "failed"):
-            values["finished_at"] = datetime.now(UTC)
+            values["finished_at"] = _utcnow()
         await self.session.execute(
             update(TaskModel).where(TaskModel.id == task_id).values(**values),
         )
@@ -190,7 +190,7 @@ class RunRepository:
 
     async def update(self, run_id: int, **kwargs: Any) -> RunModel | None:
         if "finished_at" in kwargs or kwargs.get("status") in ("completed", "failed"):
-            kwargs["finished_at"] = datetime.now(UTC)
+            kwargs["finished_at"] = _utcnow()
         await self.session.execute(
             update(RunModel).where(RunModel.id == run_id).values(**kwargs),
         )
@@ -257,7 +257,7 @@ class McpServerRepository:
         return list(result.scalars().all())
 
     async def update_status(self, server_id: int, status: str) -> McpServerModel | None:
-        values: dict[str, Any] = {"status": status, "updated_at": datetime.now(UTC)}
+        values: dict[str, Any] = {"status": status, "updated_at": _utcnow()}
         await self.session.execute(
             update(McpServerModel).where(McpServerModel.id == server_id).values(**values),
         )
@@ -321,7 +321,7 @@ class AgentTemplateRepository:
         tmpl_id: int,
         **kwargs: Any,
     ) -> AgentTemplateModel | None:
-        kwargs["updated_at"] = datetime.now(UTC)
+        kwargs["updated_at"] = _utcnow()
         await self.session.execute(
             update(AgentTemplateModel).where(AgentTemplateModel.id == tmpl_id).values(**kwargs),
         )
@@ -332,7 +332,7 @@ class AgentTemplateRepository:
         await self.session.execute(
             update(AgentTemplateModel)
             .where(AgentTemplateModel.id == tmpl_id)
-            .values(usage_count=AgentTemplateModel.usage_count + 1, updated_at=datetime.now(UTC)),
+            .values(usage_count=AgentTemplateModel.usage_count + 1, updated_at=_utcnow()),
         )
         await self.session.commit()
         return await self.get_by_id(tmpl_id)
@@ -395,7 +395,7 @@ class WebhookRepository:
         hook_id: int,
         **kwargs: Any,
     ) -> WebhookModel | None:
-        kwargs["updated_at"] = datetime.now(UTC)
+        kwargs["updated_at"] = _utcnow()
         await self.session.execute(
             update(WebhookModel).where(WebhookModel.id == hook_id).values(**kwargs),
         )
